@@ -1265,51 +1265,80 @@ page.admin = async () => {
     const user = getAuthUser();
     if (!user || user.role !== 'admin') { router.navigate('/'); return; }
     document.getElementById('pageContent').innerHTML = html`
-        <h2 class="mb-4">Admin Panel</h2>
+        <h2 class="mb-4">Admin Dashboard</h2>
+        <div class="grid grid-4 mb-4" id="adminStats">
+            <div class="card text-center"><div class="card-header">Users</div><div id="statUsers" style="font-size:2rem;font-weight:800;color:var(--primary)">—</div></div>
+            <div class="card text-center"><div class="card-header">Listings</div><div id="statListings" style="font-size:2rem;font-weight:800;color:var(--secondary)">—</div></div>
+            <div class="card text-center"><div class="card-header">Connections</div><div id="statConnections" style="font-size:2rem;font-weight:800;color:var(--warning)">—</div></div>
+            <div class="card text-center"><div class="card-header">Reviews</div><div id="statReviews" style="font-size:2rem;font-weight:800;color:var(--gray)">—</div></div>
+        </div>
         <div class="card mb-4">
-            <div class="card-header">Manage Users</div>
-            <div class="form-group">
-                <input type="text" class="form-control" id="adminSearch" placeholder="Search by name or email..." oninput="page._adminSearch()">
+            <div class="card-header flex justify-between items-center">
+                <span>Users</span>
+                <input type="text" class="form-control" id="adminSearch" placeholder="Search by name or email..." style="max-width:300px">
             </div>
             <div id="adminUsersList"><div class="text-center" style="padding:20px;color:var(--gray)">Loading...</div></div>
         </div>
     `;
-    page._adminSearch = async () => {
-        const q = document.getElementById('adminSearch').value;
-        try {
-            const res = await API.get(`/admin/users?search=${encodeURIComponent(q)}`);
-            const container = document.getElementById('adminUsersList');
-            if (!res.users || res.users.length === 0) {
-                container.innerHTML = '<div class="text-center" style="padding:20px;color:var(--gray)">No users found.</div>';
-                return;
-            }
-            container.innerHTML = res.users.map(u => html`
-                <div class="connection-item">
-                    <img src="${u.profilePhotoUrl || '/assets/images/default-avatar.png'}" class="avatar avatar-sm">
-                    <div style="flex:1">
-                        <div style="font-weight:600">${esc(u.name)}</div>
-                        <div style="font-size:0.85rem;color:var(--gray)">${esc(u.email)} ${u.isVerified ? '✅ Verified' : '❌ Unverified'}</div>
-                    </div>
-                    <button class="btn btn-sm ${u.isVerified ? 'btn-secondary' : 'btn-success'}" onclick="page._toggleVerify('${u._id}')">
-                        ${u.isVerified ? 'Unverify' : 'Verify'}
-                    </button>
-                </div>
-            `).join('');
-        } catch (err) {
-            document.getElementById('adminUsersList').innerHTML = html`<div class="alert alert-error">${esc(err.message)}</div>`;
-        }
-    };
-    page._toggleVerify = async (userId) => {
-        try {
-            await API.post(`/admin/users/${userId}/verify`);
-            showToast('Verification toggled!');
-            page._adminSearch();
-        } catch (err) { showToast(err.message, 'error'); }
-    };
-    page._adminSearch();
+    document.getElementById('adminSearch').oninput = debounce(() => page._adminSearch(), 300);
+    try {
+        const [statsRes, usersRes] = await Promise.all([
+            API.get('/admin/stats'),
+            API.get('/admin/users'),
+        ]);
+        document.getElementById('statUsers').textContent = statsRes.stats?.users ?? '—';
+        document.getElementById('statListings').textContent = statsRes.stats?.listings ?? '—';
+        document.getElementById('statConnections').textContent = statsRes.stats?.connections ?? '—';
+        document.getElementById('statReviews').textContent = statsRes.stats?.reviews ?? '—';
+        page._renderUsers(usersRes.users);
+    } catch (err) {
+        document.getElementById('adminUsersList').innerHTML = html`<div class="alert alert-error">${esc(err.message)}</div>`;
+    }
 };
 
-router.register('/', () => page.home());
+page._renderUsers = (users) => {
+    const container = document.getElementById('adminUsersList');
+    if (!users || users.length === 0) {
+        container.innerHTML = '<div class="text-center" style="padding:20px;color:var(--gray)">No users found.</div>';
+        return;
+    }
+    container.innerHTML = users.map(u => html`
+        <div class="connection-item">
+            <img src="${u.profilePhotoUrl || '/assets/images/default-avatar.png'}" class="avatar avatar-sm">
+            <div style="flex:1">
+                <div style="font-weight:600">${esc(u.name)}</div>
+                <div style="font-size:0.85rem;color:var(--gray)">${esc(u.email)} · ${u.isVerified ? 'Verified' : 'Unverified'} · ${u.isSuspended ? 'Suspended' : 'Active'}</div>
+            </div>
+            <button class="btn btn-sm ${u.isVerified ? 'btn-secondary' : 'btn-success'}" onclick="page._toggleVerify('${u._id}')">
+                ${u.isVerified ? 'Unverify' : 'Verify'}
+            </button>
+        </div>
+    `).join('');
+};
+
+page._adminSearch = async () => {
+    const q = document.getElementById('adminSearch').value;
+    try {
+        const res = await API.get(`/admin/users?search=${encodeURIComponent(q)}`);
+        page._renderUsers(res.users);
+    } catch (err) {
+        document.getElementById('adminUsersList').innerHTML = html`<div class="alert alert-error">${esc(err.message)}</div>`;
+    }
+};
+
+page._toggleVerify = async (userId) => {
+    try {
+        await API.post(`/admin/users/${userId}/verify`);
+        showToast('Verification toggled!');
+        page._adminSearch();
+    } catch (err) { showToast(err.message, 'error'); }
+};
+
+router.register('/', () => {
+    const user = getAuthUser();
+    if (user && user.role === 'admin') { router.navigate('/admin'); return; }
+    page.home();
+});
 router.register('/login', () => page.login());
 router.register('/register', () => page.register());
 router.register('/listings', () => page.listings());

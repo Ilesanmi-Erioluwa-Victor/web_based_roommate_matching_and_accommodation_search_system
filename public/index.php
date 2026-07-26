@@ -254,6 +254,10 @@ try {
             AdminController::getAuditLogs();
             break;
 
+        case $uri === '/api/admin/stats' && $method === 'GET':
+            AdminController::getStats();
+            break;
+
         case $uri === '/api/setup/ensure-indexes' && ($method === 'GET' || $method === 'POST'):
             try {
                 $db = Database::getConnection();

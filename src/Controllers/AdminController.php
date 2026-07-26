@@ -6,8 +6,12 @@ use MongoDB\BSON\ObjectId;
 use RoomieMatch\Middleware\Auth;
 use RoomieMatch\Models\User;
 use RoomieMatch\Models\Listing;
+use RoomieMatch\Models\Connection;
+use RoomieMatch\Models\Message;
+use RoomieMatch\Models\Review;
 use RoomieMatch\Models\Report;
 use RoomieMatch\Models\AuditLog;
+use RoomieMatch\Config\Database;
 
 class AdminController
 {
@@ -90,5 +94,21 @@ class AdminController
         $search = $_GET['search'] ?? '';
         $users = User::searchAdmin($search);
         echo json_encode(['users' => $users]);
+    }
+
+    public static function getStats(): void
+    {
+        Auth::requireAdmin();
+        $db = Database::getConnection();
+        echo json_encode([
+            'stats' => [
+                'users' => $db->users->countDocuments(),
+                'listings' => $db->listings->countDocuments(),
+                'connections' => $db->connections->countDocuments(),
+                'messages' => $db->messages->countDocuments(),
+                'reviews' => $db->reviews->countDocuments(),
+                'reports' => $db->reports->countDocuments(),
+            ]
+        ]);
     }
 }

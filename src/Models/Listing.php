@@ -113,10 +113,12 @@ class Listing
         }
 
         if (!empty($filters['text'])) {
-            $pipeline[] = [
-                '$match' => [
-                    '$text' => ['$search' => $filters['text']]
-                ]
+            $escaped = preg_quote($filters['text'], '/');
+            $match['$or'] = [
+                ['title' => ['$regex' => $escaped, '$options' => 'i']],
+                ['description' => ['$regex' => $escaped, '$options' => 'i']],
+                ['address.area' => ['$regex' => $escaped, '$options' => 'i']],
+                ['address.city' => ['$regex' => $escaped, '$options' => 'i']],
             ];
         }
 
