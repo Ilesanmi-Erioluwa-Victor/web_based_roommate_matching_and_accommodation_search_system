@@ -39,7 +39,7 @@ class AuditLog
 
         return [
             'logs' => array_map(function($doc) {
-                $arr = $doc instanceof \MongoDB\Model\BSONDocument ? $doc->getArrayCopy() : (array)$doc;
+                $arr = $doc instanceof \MongoDB\Model\BSONDocument ? $doc->toArray() : (array)$doc;
                 if (isset($arr['_id'])) $arr['_id'] = (string)$arr['_id'];
                 if (isset($arr['user']) && $arr['user'] instanceof ObjectId) $arr['user'] = (string)$arr['user'];
                 return $arr;

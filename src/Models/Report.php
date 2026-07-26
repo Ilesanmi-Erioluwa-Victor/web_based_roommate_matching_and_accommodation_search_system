@@ -69,7 +69,7 @@ class Report
     public static function formatDoc($doc): array
     {
         if ($doc === null) return [];
-        $arr = $doc instanceof \MongoDB\Model\BSONDocument ? $doc->getArrayCopy() : (array)$doc;
+        $arr = $doc instanceof \MongoDB\Model\BSONDocument ? $doc->toArray() : (array)$doc;
         if (isset($arr['_id'])) $arr['_id'] = (string)$arr['_id'];
         if (isset($arr['reporter']) && $arr['reporter'] instanceof ObjectId) $arr['reporter'] = (string)$arr['reporter'];
         return $arr;
