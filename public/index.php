@@ -241,7 +241,7 @@ try {
             AdminController::getAuditLogs();
             break;
 
-        case $uri === '/api/setup/ensure-indexes' && $method === 'POST':
+        case $uri === '/api/setup/ensure-indexes' && ($method === 'GET' || $method === 'POST'):
             try {
                 $db = Database::getConnection();
                 $db->command(['ping' => 1]);
