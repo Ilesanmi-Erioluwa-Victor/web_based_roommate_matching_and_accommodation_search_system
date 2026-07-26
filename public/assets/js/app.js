@@ -293,7 +293,15 @@ const page = {
             this._searchListings();
         };
 
-        const liveSearch = debounce(() => this._searchListings(), 300);
+        const doLiveSearch = () => {
+            const t = document.getElementById('searchText').value;
+            const pmin = document.getElementById('searchPriceMin').value;
+            const pmax = document.getElementById('searchPriceMax').value;
+            const rt = document.getElementById('searchRoomType').value;
+            const rad = document.getElementById('searchRadius').value;
+            this._loadListings({ page: 1, q: t, priceMin: pmin, priceMax: pmax, roomType: rt, radius: rad });
+        };
+        const liveSearch = debounce(doLiveSearch, 300);
         ['searchText', 'searchPriceMin', 'searchPriceMax', 'searchRadius'].forEach(id => {
             const el = document.getElementById(id);
             if (el) el.oninput = liveSearch;
@@ -653,11 +661,16 @@ const page = {
                 <button class="btn btn-secondary btn-sm mt-2" onclick="router.navigate('/profile')">Update Lifestyle Profile</button>
             </div>
             <div id="matchesContainer"><div class="text-center" style="padding:40px;color:var(--gray)">Computing compatibility scores...</div></div>
+            <div id="matchesPagination" class="pagination mt-4"></div>
         `;
-        try {
-            const res = await API.get('/matches/roommates');
-            const container = document.getElementById('matchesContainer');
+        await this._loadMatches(1);
+    },
 
+    async _loadMatches(page) {
+        const container = document.getElementById('matchesContainer');
+        const pagination = document.getElementById('matchesPagination');
+        try {
+            const res = await API.get(`/matches/roommates?page=${page}&limit=10`);
             if (!res.matches || res.matches.length === 0) {
                 container.innerHTML = html`
                     <div class="empty-state">
@@ -665,9 +678,9 @@ const page = {
                         <p>Complete your lifestyle profile and make sure you are set to "actively looking" to find matches.</p>
                         <button class="btn btn-primary" onclick="router.navigate('/profile')">Update Profile</button>
                     </div>`;
+                pagination.innerHTML = '';
                 return;
             }
-
             container.innerHTML = html`
                 <div style="display:grid;gap:12px">
                     ${res.matches.map(m => {
@@ -698,8 +711,29 @@ const page = {
                     }).join('')}
                 </div>
             `;
+            pagination.innerHTML = '';
+            if (res.pages > 1) {
+                const prevBtn = document.createElement('button');
+                prevBtn.textContent = '«';
+                prevBtn.disabled = page <= 1;
+                prevBtn.onclick = () => this._loadMatches(page - 1);
+                pagination.appendChild(prevBtn);
+                for (let i = 1; i <= res.pages; i++) {
+                    const btn = document.createElement('button');
+                    btn.textContent = i;
+                    if (i === page) btn.className = 'active';
+                    btn.onclick = () => this._loadMatches(i);
+                    pagination.appendChild(btn);
+                }
+                const nextBtn = document.createElement('button');
+                nextBtn.textContent = '»';
+                nextBtn.disabled = page >= res.pages;
+                nextBtn.onclick = () => this._loadMatches(page + 1);
+                pagination.appendChild(nextBtn);
+            }
         } catch (err) {
-            document.getElementById('matchesContainer').innerHTML = html`<div class="empty-state"><h3>Error</h3><p>${esc(err.message)}</p></div>`;
+            container.innerHTML = html`<div class="empty-state"><h3>Error</h3><p>${esc(err.message)}</p></div>`;
+            pagination.innerHTML = '';
         }
     },
 
