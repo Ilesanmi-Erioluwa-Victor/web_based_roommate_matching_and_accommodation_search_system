@@ -31,7 +31,7 @@ const API = {
     },
 
     async upload(method, path, formData) {
-        const opts = { method };
+        const opts = { method, body: formData };
         if (this.token) opts.headers = { 'Authorization': `Bearer ${this.token}` };
         try {
             const res = await fetch(`${this.baseUrl}${path}`, opts);

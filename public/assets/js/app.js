@@ -628,7 +628,7 @@ const page = {
                         <form id="photoForm">
                             <label class="btn btn-secondary btn-sm" style="cursor:pointer">
                                 Change Photo
-                                <input type="file" name="photo" accept="image/*" style="display:none" onchange="uploadProfilePhoto(this)">
+                                <input type="file" name="photo" accept="image/*" style="display:none" onchange="selectProfilePhoto(this)">
                             </label>
                         </form>
                     </div>
@@ -819,6 +819,22 @@ function calculateCompleteness(ls) {
     return filled / fields.length;
 }
 
+let pendingPhoto = null;
+
+function selectProfilePhoto(input) {
+    if (!input.files[0]) return;
+    pendingPhoto = input.files[0];
+    const reader = new FileReader();
+    reader.onload = function(e) {
+        const avatarContainer = document.querySelector('#profileInfo > .flex > div:first-child');
+        if (avatarContainer) {
+            avatarContainer.innerHTML = `<img src="${e.target.result}" class="avatar avatar-lg" style="object-fit:cover">`;
+        }
+    };
+    reader.readAsDataURL(input.files[0]);
+    showToast('Photo selected. Click "Update Profile" to save.');
+}
+
 async function uploadProfilePhoto(input) {
     if (!input.files[0]) return;
     const fd = new FormData();
@@ -834,6 +850,12 @@ async function updateProfile() {
     const btn = document.querySelector('button[onclick="updateProfile()"]');
     if (btn) { btn.disabled = true; btn.classList.add('btn-loading'); }
     try {
+        if (pendingPhoto) {
+            const fd = new FormData();
+            fd.append('photo', pendingPhoto);
+            await API.upload('POST', '/users/me/profile-photo', fd);
+            pendingPhoto = null;
+        }
         await API.patch('/users/me/profile', {
             phone: document.getElementById('profilePhone').value,
             gender: document.getElementById('profileGender').value,
