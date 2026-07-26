@@ -12,14 +12,14 @@ COPY --from=composer:latest /usr/bin/composer /usr/bin/composer
 WORKDIR /app
 
 COPY composer.json ./
-RUN composer install --no-dev --optimize-autoloader --no-interaction
+RUN composer install --no-dev --optimize-autoloader --no-interaction --no-audit --ignore-platform-req=ext-mongodb
 
 COPY . .
 
 RUN composer dump-autoload --optimize
 
-RUN php -r "echo 'MongoDB extension: ' . (extension_loaded('mongodb') ? 'OK' : 'MISSING') . PHP_EOL;" \
-    && php -r "echo 'MongoDB Client class: ' . (class_exists('MongoDB\Client') ? 'OK' : 'MISSING') . PHP_EOL;"
+RUN php -r "echo 'MongoDB ext: ' . (extension_loaded('mongodb') ? 'OK' : 'MISSING') . PHP_EOL;" \
+    && php -r "echo 'MongoDB\\Client: ' . (class_exists('MongoDB\\Client') ? 'OK' : 'MISSING') . PHP_EOL;"
 
 EXPOSE 8000
 

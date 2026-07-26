@@ -16,5 +16,17 @@
     },
     "scripts": {
         "start": "php -S localhost:8000 -t public"
+    },
+    "config": {
+        "platform": {
+            "ext-mongodb": "1.18.0"
+        }
+    },
+    "extra": {
+        "policy": {
+            "advisories": {
+                "ignore-id": ["PKSA-y2cr-5h3j-g3ys"]
+            }
+        }
     }
 }
