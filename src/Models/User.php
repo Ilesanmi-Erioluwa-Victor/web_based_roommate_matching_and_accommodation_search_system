@@ -118,6 +118,21 @@ class User
         return array_map([self::class, 'formatDoc'], $users);
     }
 
+    public static function searchAdmin(string $query): array
+    {
+        $filter = [];
+        if ($query) {
+            $filter = [
+                '$or' => [
+                    ['name' => ['$regex' => $query, '$options' => 'i']],
+                    ['email' => ['$regex' => $query, '$options' => 'i']],
+                ]
+            ];
+        }
+        $docs = self::getCollection()->find($filter, ['sort' => ['createdAt' => -1], 'limit' => 50])->toArray();
+        return array_map([self::class, 'formatDoc'], $docs);
+    }
+
     public static function addBlockedUser(string|ObjectId $userId, string|ObjectId $blockedId): bool
     {
         if (is_string($userId)) $userId = new ObjectId($userId);

@@ -242,6 +242,14 @@ try {
             AdminController::removeListing($params['id']);
             break;
 
+        case ($params = matchRoute($uri, '/api/admin/users/{id}/verify')) !== null && $method === 'POST':
+            AdminController::verifyUser($params['id']);
+            break;
+
+        case $uri === '/api/admin/users' && $method === 'GET':
+            AdminController::getUsers();
+            break;
+
         case $uri === '/api/admin/audit-logs' && $method === 'GET':
             AdminController::getAuditLogs();
             break;

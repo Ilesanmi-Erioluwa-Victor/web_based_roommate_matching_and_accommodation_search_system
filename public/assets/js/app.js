@@ -58,6 +58,9 @@ function updateNavbar() {
         if (el) el.style.display = user ? 'none' : 'inline-block';
     });
 
+    const adminLink = document.getElementById('navAdmin');
+    if (adminLink) adminLink.style.display = user && user.role === 'admin' ? 'inline-block' : 'none';
+
     const logoutLink = document.getElementById('navLogout');
     if (logoutLink) logoutLink.style.display = user ? 'inline-block' : 'none';
 }
@@ -71,6 +74,14 @@ async function logout() {
 
 function toggleMobileMenu() {
     document.getElementById('navLinks').classList.toggle('open');
+}
+
+function debounce(fn, ms) {
+    let timer;
+    return function(...args) {
+        clearTimeout(timer);
+        timer = setTimeout(() => fn.apply(this, args), ms);
+    };
 }
 
 document.addEventListener('click', (e) => {
@@ -279,22 +290,34 @@ const page = {
 
         document.getElementById('searchForm').onsubmit = (e) => {
             e.preventDefault();
-            const t = document.getElementById('searchText').value;
-            const pmin = document.getElementById('searchPriceMin').value;
-            const pmax = document.getElementById('searchPriceMax').value;
-            const rt = document.getElementById('searchRoomType').value;
-            const rad = document.getElementById('searchRadius').value;
-            const p = new URLSearchParams();
-            if (t) p.set('q', t);
-            if (pmin) p.set('priceMin', pmin);
-            if (pmax) p.set('priceMax', pmax);
-            if (rt) p.set('roomType', rt);
-            if (rad) p.set('radius', rad);
-            const qs = p.toString();
-            router.navigate(`/listings${qs ? '?' + qs : ''}`);
+            this._searchListings();
         };
 
+        const liveSearch = debounce(() => this._searchListings(), 300);
+        ['searchText', 'searchPriceMin', 'searchPriceMax', 'searchRadius'].forEach(id => {
+            const el = document.getElementById(id);
+            if (el) el.oninput = liveSearch;
+        });
+        const roomTypeEl = document.getElementById('searchRoomType');
+        if (roomTypeEl) roomTypeEl.onchange = liveSearch;
+
         await this._loadListings({ page, q, priceMin, priceMax, roomType, radius });
+    },
+
+    _searchListings() {
+        const t = document.getElementById('searchText').value;
+        const pmin = document.getElementById('searchPriceMin').value;
+        const pmax = document.getElementById('searchPriceMax').value;
+        const rt = document.getElementById('searchRoomType').value;
+        const rad = document.getElementById('searchRadius').value;
+        const p = new URLSearchParams();
+        if (t) p.set('q', t);
+        if (pmin) p.set('priceMin', pmin);
+        if (pmax) p.set('priceMax', pmax);
+        if (rt) p.set('roomType', rt);
+        if (rad) p.set('radius', rad);
+        const qs = p.toString();
+        router.navigate(`/listings${qs ? '?' + qs : ''}`);
     },
 
     async _loadListings(filters) {
@@ -1238,6 +1261,54 @@ page.chat = async (connectionId) => {
     };
 };
 
+page.admin = async () => {
+    const user = getAuthUser();
+    if (!user || user.role !== 'admin') { router.navigate('/'); return; }
+    document.getElementById('pageContent').innerHTML = html`
+        <h2 class="mb-4">Admin Panel</h2>
+        <div class="card mb-4">
+            <div class="card-header">Manage Users</div>
+            <div class="form-group">
+                <input type="text" class="form-control" id="adminSearch" placeholder="Search by name or email..." oninput="page._adminSearch()">
+            </div>
+            <div id="adminUsersList"><div class="text-center" style="padding:20px;color:var(--gray)">Loading...</div></div>
+        </div>
+    `;
+    page._adminSearch = async () => {
+        const q = document.getElementById('adminSearch').value;
+        try {
+            const res = await API.get(`/admin/users?search=${encodeURIComponent(q)}`);
+            const container = document.getElementById('adminUsersList');
+            if (!res.users || res.users.length === 0) {
+                container.innerHTML = '<div class="text-center" style="padding:20px;color:var(--gray)">No users found.</div>';
+                return;
+            }
+            container.innerHTML = res.users.map(u => html`
+                <div class="connection-item">
+                    <img src="${u.profilePhotoUrl || '/assets/images/default-avatar.png'}" class="avatar avatar-sm">
+                    <div style="flex:1">
+                        <div style="font-weight:600">${esc(u.name)}</div>
+                        <div style="font-size:0.85rem;color:var(--gray)">${esc(u.email)} ${u.isVerified ? '✅ Verified' : '❌ Unverified'}</div>
+                    </div>
+                    <button class="btn btn-sm ${u.isVerified ? 'btn-secondary' : 'btn-success'}" onclick="page._toggleVerify('${u._id}')">
+                        ${u.isVerified ? 'Unverify' : 'Verify'}
+                    </button>
+                </div>
+            `).join('');
+        } catch (err) {
+            document.getElementById('adminUsersList').innerHTML = html`<div class="alert alert-error">${esc(err.message)}</div>`;
+        }
+    };
+    page._toggleVerify = async (userId) => {
+        try {
+            await API.post(`/admin/users/${userId}/verify`);
+            showToast('Verification toggled!');
+            page._adminSearch();
+        } catch (err) { showToast(err.message, 'error'); }
+    };
+    page._adminSearch();
+};
+
 router.register('/', () => page.home());
 router.register('/login', () => page.login());
 router.register('/register', () => page.register());
@@ -1247,6 +1318,7 @@ router.register('/matches', () => page.matches());
 router.register('/profile', () => page.profile());
 router.register('/connections', () => page.connections());
 router.register('/my-listings', () => page.myListings());
+router.register('/admin', () => page.admin());
 
 router.register(/^\/listings\/([a-f0-9]+)$/, async (id) => {
     await page.listingDetail(id);
