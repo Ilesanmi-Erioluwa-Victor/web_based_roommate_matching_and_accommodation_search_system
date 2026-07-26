@@ -58,9 +58,11 @@ class Connection
     {
         if (is_string($userId)) $userId = new ObjectId($userId);
         $docs = self::getCollection()->find([
-            'recipient' => $userId,
-            'status' => 'pending'
-        ])->toArray();
+            '$or' => [
+                ['recipient' => $userId, 'status' => 'pending'],
+                ['requester' => $userId, 'status' => 'pending'],
+            ]
+        ])->sort(['createdAt' => -1])->toArray();
         return array_map([self::class, 'formatDoc'], $docs);
     }
 

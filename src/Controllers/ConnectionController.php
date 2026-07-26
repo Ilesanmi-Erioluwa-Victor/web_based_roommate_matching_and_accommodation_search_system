@@ -143,12 +143,23 @@ class ConnectionController
 
         $result = [];
         foreach ($pending as $conn) {
-            $requester = User::findById($conn['requester']);
-            $conn['requesterData'] = $requester ? [
-                '_id' => $requester['_id'],
-                'name' => $requester['name'],
-                'profilePhotoUrl' => $requester['profilePhotoUrl'],
-            ] : null;
+            if ($conn['recipient'] === $user['_id']) {
+                $other = User::findById($conn['requester']);
+                $conn['direction'] = 'received';
+                $conn['otherUser'] = $other ? [
+                    '_id' => $other['_id'],
+                    'name' => $other['name'],
+                    'profilePhotoUrl' => $other['profilePhotoUrl'],
+                ] : null;
+            } else {
+                $other = User::findById($conn['recipient']);
+                $conn['direction'] = 'sent';
+                $conn['otherUser'] = $other ? [
+                    '_id' => $other['_id'],
+                    'name' => $other['name'],
+                    'profilePhotoUrl' => $other['profilePhotoUrl'],
+                ] : null;
+            }
             $result[] = $conn;
         }
 

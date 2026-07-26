@@ -668,7 +668,7 @@ const page = {
                                     ` : ''}
                                 </div>
                                 <div class="match-actions">
-                                    <button class="btn btn-primary btn-sm" onclick="sendConnection('${m.user._id}')">Connect</button>
+                                    <button class="btn btn-primary btn-sm" data-userid="${m.user._id}" onclick="sendConnection(this)">Connect</button>
                                     <button class="btn btn-secondary btn-sm" onclick="router.navigate('/users/${m.user._id}')">View</button>
                                 </div>
                             </div>
@@ -1022,14 +1022,24 @@ async function updateMatchingStatus() {
     if (btn) { btn.disabled = false; btn.classList.remove('btn-loading'); }
 }
 
-async function sendConnection(userId, listingId) {
+async function sendConnection(btn) {
+    const userId = btn.dataset.userid;
+    const listingId = btn.dataset.listingid || null;
+    btn.disabled = true;
+    btn.textContent = 'Sending...';
     try {
         const data = { recipientId: userId };
         if (listingId) data.listingId = listingId;
         await API.post('/connections', data);
+        btn.textContent = 'Request Sent';
+        btn.classList.remove('btn-primary');
+        btn.classList.add('btn-secondary');
         showToast('Connection request sent!');
-        router.navigate('/connections');
-    } catch (err) { showToast(err.message, 'error'); }
+    } catch (err) {
+        btn.disabled = false;
+        btn.textContent = 'Connect';
+        showToast(err.message, 'error');
+    }
 }
 
 async function sendConnectionFromListing(listingId) {
@@ -1037,7 +1047,14 @@ async function sendConnectionFromListing(listingId) {
     try {
         const res = await API.get(`/listings/${listingId}`);
         const listerId = res.listing.lister;
-        await sendConnection(listerId, listingId);
+        const btn = document.querySelector(`[data-listid="${listingId}"]`);
+        if (btn) {
+            btn.disabled = true;
+            btn.textContent = 'Sending...';
+        }
+        await API.post('/connections', { recipientId: listerId, listingId });
+        showToast('Connection request sent!');
+        if (btn) { btn.textContent = 'Request Sent'; btn.classList.remove('btn-primary'); btn.classList.add('btn-secondary'); }
     } catch (err) { showToast(err.message, 'error'); }
 }
 
@@ -1109,13 +1126,17 @@ async function showPendingConnections() {
         }
         container.innerHTML = res.connections.map(c => html`
             <div class="connection-item">
-                <img src="${c.requesterData?.profilePhotoUrl || '/assets/images/default-avatar.png'}" class="avatar avatar-sm">
+                <img src="${c.otherUser?.profilePhotoUrl || '/assets/images/default-avatar.png'}" class="avatar avatar-sm">
                 <div style="flex:1">
-                    <div style="font-weight:600">${esc(c.requesterData?.name || 'Unknown')}</div>
-                    <div style="font-size:0.85rem;color:var(--gray)">Sent ${new Date(c.createdAt?.$date || c.createdAt).toLocaleDateString()}</div>
+                    <div style="font-weight:600">${esc(c.otherUser?.name || 'Unknown')}</div>
+                    <div style="font-size:0.85rem;color:var(--gray)">${c.direction === 'sent' ? 'Sent' : 'Received'} · ${new Date(c.createdAt?.$date || c.createdAt).toLocaleDateString()}</div>
                 </div>
-                <button class="btn btn-success btn-sm" onclick="respondToConnection('${c._id}', 'accepted')">Accept</button>
-                <button class="btn btn-danger btn-sm" onclick="respondToConnection('${c._id}', 'declined')">Decline</button>
+                ${c.direction === 'received' ? html`
+                    <button class="btn btn-success btn-sm" onclick="respondToConnection('${c._id}', 'accepted')">Accept</button>
+                    <button class="btn btn-danger btn-sm" onclick="respondToConnection('${c._id}', 'declined')">Decline</button>
+                ` : html`
+                    <span class="tag" style="background:var(--light-gray)">Request Sent</span>
+                `}
             </div>
         `).join('');
     } catch (err) { container.innerHTML = html`<div class="alert alert-error">${esc(err.message)}</div>`; }
