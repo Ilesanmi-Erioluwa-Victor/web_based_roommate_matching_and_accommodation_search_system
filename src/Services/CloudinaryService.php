@@ -60,6 +60,24 @@ class CloudinaryService
         ];
     }
 
+    public function uploadListingPhotoFromUrl(string $imageUrl, string $listingId, int $index): array
+    {
+        $folder = "roomiematch/listings/{$listingId}";
+        $result = $this->cloudinary->uploadApi()->upload($imageUrl, [
+            'folder' => $folder,
+            'public_id' => "photo_{$listingId}_{$index}",
+            'transformation' => [
+                'width' => 1200, 'height' => 1200, 'crop' => 'limit',
+                'quality' => 'auto', 'fetch_format' => 'auto',
+            ],
+        ]);
+
+        return [
+            'url' => $result['secure_url'],
+            'publicId' => $result['public_id'],
+        ];
+    }
+
     public function deleteImage(string $publicId): bool
     {
         try {

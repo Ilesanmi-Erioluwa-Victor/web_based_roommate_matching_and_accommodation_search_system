@@ -331,7 +331,26 @@ const page = {
 
             pagination.innerHTML = '';
             if (res.pages > 1) {
-                for (let i = 1; i <= res.pages; i++) {
+                const prevBtn = document.createElement('button');
+                prevBtn.textContent = '«';
+                prevBtn.disabled = res.page <= 1;
+                prevBtn.onclick = () => {
+                    const p = new URLSearchParams(location.search);
+                    p.set('page', res.page - 1);
+                    router.navigate(`/listings?${p.toString()}`);
+                };
+                pagination.appendChild(prevBtn);
+
+                let start = Math.max(1, res.page - 2);
+                let end = Math.min(res.pages, res.page + 2);
+                if (start > 1) {
+                    const first = document.createElement('button');
+                    first.textContent = '1';
+                    first.onclick = () => { const p = new URLSearchParams(location.search); p.set('page', 1); router.navigate(`/listings?${p.toString()}`); };
+                    pagination.appendChild(first);
+                    if (start > 2) { const dots = document.createElement('span'); dots.textContent = '...'; dots.className = 'pagination-dots'; pagination.appendChild(dots); }
+                }
+                for (let i = start; i <= end; i++) {
                     const btn = document.createElement('button');
                     btn.textContent = i;
                     if (i === res.page) btn.className = 'active';
@@ -342,6 +361,23 @@ const page = {
                     };
                     pagination.appendChild(btn);
                 }
+                if (end < res.pages) {
+                    if (end < res.pages - 1) { const dots = document.createElement('span'); dots.textContent = '...'; dots.className = 'pagination-dots'; pagination.appendChild(dots); }
+                    const last = document.createElement('button');
+                    last.textContent = res.pages;
+                    last.onclick = () => { const p = new URLSearchParams(location.search); p.set('page', res.pages); router.navigate(`/listings?${p.toString()}`); };
+                    pagination.appendChild(last);
+                }
+
+                const nextBtn = document.createElement('button');
+                nextBtn.textContent = '»';
+                nextBtn.disabled = res.page >= res.pages;
+                nextBtn.onclick = () => {
+                    const p = new URLSearchParams(location.search);
+                    p.set('page', res.page + 1);
+                    router.navigate(`/listings?${p.toString()}`);
+                };
+                pagination.appendChild(nextBtn);
             }
         } catch (err) {
             document.getElementById('listingsContainer').innerHTML = html`

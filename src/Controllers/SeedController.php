@@ -5,14 +5,14 @@ namespace RoomieMatch\Controllers;
 use MongoDB\BSON\ObjectId;
 use MongoDB\BSON\UTCDateTime;
 use RoomieMatch\Config\Database;
+use RoomieMatch\Services\CloudinaryService;
 
 class SeedController
 {
     public static function seed(): void
     {
         $db = Database::getConnection();
-        $count = (int)($_GET['count'] ?? 15);
-        $count = min($count, 50);
+        $count = min((int)($_GET['count'] ?? 25), 60);
 
         $db->users->deleteMany([]);
         $db->listings->deleteMany([]);
@@ -39,6 +39,7 @@ class SeedController
 
         $userIds = [];
 
+        echo "Creating admin...\n";
         $adminUser = \RoomieMatch\Models\User::create([
             'name' => 'Admin',
             'email' => 'admin@example.com',
@@ -49,6 +50,7 @@ class SeedController
         ]);
         $userIds[] = $adminUser['_id'];
 
+        echo "Creating $count users...\n";
         for ($i = 0; $i < $count; $i++) {
             $name = $names[$i % count($names)];
             $gender = $genders[array_rand($genders)];
@@ -63,10 +65,6 @@ class SeedController
             $hasPets = (bool)rand(0, 1);
             $toleratesSmoking = $smoker ? true : (bool)rand(0, 1);
             $toleratesPets = $hasPets ? true : (bool)rand(0, 1);
-
-            $sleepIdx = array_rand($sleepSchedules);
-            $guestIdx = array_rand($guestFreqs);
-            $workIdx = array_rand($workSchedules);
 
             $prefLocations = [];
             $numLocs = rand(1, 3);
@@ -88,12 +86,12 @@ class SeedController
                 'isVerified' => true,
                 'lifestyle' => [
                     'budgetMin' => $budgetMin, 'budgetMax' => $budgetMax, 'currency' => 'NGN',
-                    'cleanliness' => $cleanliness, 'sleepSchedule' => $sleepSchedules[$sleepIdx],
+                    'cleanliness' => $cleanliness, 'sleepSchedule' => $sleepSchedules[array_rand($sleepSchedules)],
                     'smoker' => $smoker, 'toleratesSmoking' => $toleratesSmoking,
                     'hasPets' => $hasPets, 'toleratesPets' => $toleratesPets,
-                    'noiseLevel' => $noiseLevel, 'guestFrequency' => $guestFreqs[$guestIdx],
-                    'workSchedule' => $workSchedules[$workIdx],
-                    'dietaryPreference' => ['none', 'halal', 'vegetarian', 'vegan'][array_rand(['none', 'halal', 'vegetarian', 'vegan'])],
+                    'noiseLevel' => $noiseLevel, 'guestFrequency' => $guestFreqs[array_rand($guestFreqs)],
+                    'workSchedule' => $workSchedules[array_rand($workSchedules)],
+                    'dietaryPreference' => ['none', 'none', 'halal', 'vegetarian', 'vegan'][array_rand([0, 0, 1, 2, 3])],
                     'religionPreference' => null,
                     'genderPreference' => ['any', 'same'][array_rand(['any', 'same'])],
                     'preferredLocations' => $prefLocations,
@@ -106,7 +104,7 @@ class SeedController
                     'maxBudgetStrict' => (bool)rand(0, 1),
                 ],
                 'location' => ['type' => 'Point', 'coordinates' => [$lng, $lat]],
-                'matchingStatus' => ['actively_looking', 'actively_looking', 'actively_looking', 'paused', 'found_roommate'][array_rand([0, 0, 0, 1, 2])],
+                'matchingStatus' => ['actively_looking', 'actively_looking', 'paused', 'found_roommate'][array_rand([0, 0, 1, 2])],
             ]);
 
             $userIds[] = $user['_id'];
@@ -123,19 +121,39 @@ class SeedController
             'Room in 3-bedroom flat', 'Executive studio apartment',
             'Single room in student hostel', 'Flat with 24/7 electricity',
             'Nice self-contain in Atan', 'Room for female roommate',
+            'Spacious flat in Abeokuta', 'Self-contain with parking',
+            'Cozy studio in Ikeja', 'Room in Yaba for students',
+            'Affordable 1-bedroom in Sango', 'Apartment with generator',
+            'Shared room in Ota', 'Furnished flat in Surulere',
+            'Studio with kitchen in Lagos', 'Big room in Idiroko',
         ];
 
-        $listingsCreated = 0;
-        $listingIds = [];
-        $listers = array_slice($userIds, 1, max(8, (int)($count / 2)));
+        $descriptions = [
+            'Fully furnished and ready for immediate move-in. Close to schools, markets, and major transport routes.',
+            'Well-maintained property with 24-hour security and constant water supply. Perfect for students and young professionals.',
+            'Quiet neighborhood with easy access to all amenities. Generous living space with modern finishes.',
+            'Newly renovated with premium fittings. Includes generator backup and fast WiFi connection.',
+            'Affordable living in a prime location. Walking distance to shopping centers and public transport.',
+            'Spacious rooms with great natural lighting. Landlord lives on premises for added security.',
+            'Serene environment ideal for studying and relaxation. Gated compound with dedicated parking.',
+            'Modern apartment complex with gym and communal areas. Close to major business districts.',
+            'Budget-friendly option without compromising on quality. All basic amenities included in rent.',
+            'Executive living space with premium furnishings. Ideal for professionals seeking comfort and convenience.',
+        ];
 
-        for ($i = 0; $i < min(count($listingTitles), count($listers)); $i++) {
+        echo "Creating listings with images...\n";
+        $listingIds = [];
+        $listers = array_slice($userIds, 1);
+        $totalListings = min(count($listingTitles), count($listers));
+        $cloudinary = new CloudinaryService();
+
+        for ($i = 0; $i < $totalListings; $i++) {
             $listerId = $listers[$i % count($listers)];
             $area = $areas[array_rand($areas)];
             $city = in_array($area, ['Lagos', 'Ikeja', 'Yaba', 'Surulere']) ? 'Lagos' : 'Ogun';
             $lat = 6.5 + (float)rand(-50, 50) / 100;
             $lng = 3.2 + (float)rand(-30, 30) / 100;
-            $price = rand(3, 30) * 10000;
+            $price = rand(3, 35) * 10000;
             $amenityCount = rand(3, 7);
             $amenityKeys = array_rand($allAmenities, $amenityCount);
             if (!is_array($amenityKeys)) $amenityKeys = [$amenityKeys];
@@ -146,15 +164,19 @@ class SeedController
             $occupantIds = [];
             for ($j = 0; $j < $numOccupants; $j++) {
                 $occIdx = rand(1, count($userIds) - 1);
-                if ($occIdx !== array_search($listerId, $userIds)) {
+                if ((string)$userIds[$occIdx] !== (string)$listerId) {
                     $occupantIds[] = new ObjectId($userIds[$occIdx]);
                 }
             }
 
+            $roomType = $roomTypes[array_rand($roomTypes)];
+            $title = $listingTitles[$i];
+            $desc = $descriptions[array_rand($descriptions)];
+
             $listing = \RoomieMatch\Models\Listing::create([
                 'lister' => new ObjectId($listerId),
-                'title' => $listingTitles[$i],
-                'description' => "A wonderful " . $roomTypes[array_rand($roomTypes)] . " located in $area. Great for students and professionals. Close to market, transport, and schools. " . ($listingAmenities ? 'Comes with ' . implode(', ', $listingAmenities) . '.' : ''),
+                'title' => $title,
+                'description' => "$desc Located in $area — $roomType.",
                 'address' => [
                     'fullAddress' => rand(1, 100) . ', ' . $area . ' Road',
                     'area' => $area, 'city' => $city, 'state' => $city === 'Lagos' ? 'Lagos' : 'Ogun',
@@ -163,19 +185,32 @@ class SeedController
                 'price' => $price,
                 'pricePeriod' => 'monthly',
                 'amenities' => $listingAmenities,
-                'roomType' => $roomTypes[array_rand($roomTypes)],
-                'totalRoommatesNeeded' => rand(1, 3),
+                'roomType' => $roomType,
+                'totalRoommatesNeeded' => rand(1, 4),
                 'currentOccupants' => $occupantIds,
                 'isVerified' => (bool)rand(0, 1),
-                'availableFrom' => new UTCDateTime((time() + rand(-86400 * 30, 86400 * 60)) * 1000),
+                'availableFrom' => new UTCDateTime((time() + rand(-86400 * 30, 86400 * 90)) * 1000),
             ]);
 
-            $listingIds[] = $listing['_id'];
-            $listingsCreated++;
+            $id = (string)$listing['_id'];
+            $listingIds[] = $id;
+
+            $photoCount = rand(1, 4);
+            for ($p = 0; $p < $photoCount; $p++) {
+                $seed = "listing_{$id}_{$p}";
+                $url = "https://picsum.photos/seed/{$seed}/800/600";
+                try {
+                    $result = $cloudinary->uploadListingPhotoFromUrl($url, $id, $p);
+                    \RoomieMatch\Models\Listing::addPhoto($id, $result);
+                } catch (\Exception $e) {
+                    continue;
+                }
+            }
         }
 
+        echo "Creating connections...\n";
         $connPairs = [];
-        for ($i = 1; $i < min(10, $count); $i += 2) {
+        for ($i = 1; $i < min($count, 30); $i += 2) {
             if ($i + 1 < count($userIds)) {
                 $connPairs[] = [$userIds[$i], $userIds[$i + 1]];
             }
@@ -198,39 +233,46 @@ class SeedController
 
             $msgCount = rand(1, 5);
             $parties = [$conn['requester'], $conn['recipient']];
+            $phrases = [
+                'Hi there!', 'Hello', 'Hey!', "How's it going?",
+                'Is the room still available?', 'When can I come view?',
+                'What time works for you?', 'Are utilities included?',
+                "I'm interested in the room.", 'How many roommates are there?',
+                'Is there parking?', 'What is the neighborhood like?',
+                "Sure, let's set up a viewing.", 'Sounds good!',
+                'Yes, it is still available.', 'Anytime after 4pm works.',
+                'Water and electricity are included.', 'There are 2 other roommates.',
+                'Street parking is available.', 'It is a quiet area.',
+            ];
             for ($m = 0; $m < $msgCount; $m++) {
                 $sender = $parties[$m % 2];
-                $greetings = ['Hi', 'Hello', 'Hey', "What's up", 'Good day'];
-                $questions = ['How are you?', 'Is the room still available?', 'When can I view?', 'What time works for viewing?', 'Are there any other fees?'];
-                $replies = ["I'm good, thanks!", "Yes, still available.", "How about tomorrow?", "Anytime after 3pm works.", "No hidden fees."];
-                $msgs = array_merge($greetings, $questions, $replies);
-
                 \RoomieMatch\Models\Message::create([
                     'connection' => new ObjectId($connId),
                     'sender' => new ObjectId($sender),
-                    'content' => $msgs[array_rand($msgs)],
+                    'content' => $phrases[array_rand($phrases)],
                 ]);
             }
         }
 
-        for ($i = 1; $i < min(8, count($userIds)); $i += 2) {
+        echo "Creating reviews...\n";
+        for ($i = 1; $i < min($count, 16); $i += 2) {
             if ($i + 1 < count($userIds)) {
                 \RoomieMatch\Models\Review::create([
                     'reviewer' => new ObjectId($userIds[$i]),
                     'reviewee' => new ObjectId($userIds[$i + 1]),
                     'rating' => rand(3, 5),
-                    'comment' => ['Great roommate!', 'Very clean and tidy.', 'Would live with again.', 'Nice person, respectful.', 'Okay experience.'][array_rand([0, 1, 2, 3, 4])],
+                    'comment' => ['Great roommate! Very tidy and respectful.', 'Clean and organized. Would recommend.', 'Awesome person, very friendly.', 'Respectful of shared spaces.', 'Good roommate experience overall.'][array_rand([0, 1, 2, 3, 4])],
                 ]);
             }
         }
 
         echo json_encode([
-            'message' => "Database seeded successfully.",
+            'message' => 'Database seeded successfully.',
             'stats' => [
                 'users' => count($userIds),
-                'listings' => $listingsCreated,
+                'listings' => count($listingIds),
                 'connections' => count($connectionIds),
-                'reviews' => min(8, (int)(count($userIds) / 2)),
+                'reviews' => min(16, (int)(count($userIds) / 2)),
             ]
         ]);
     }
