@@ -55,6 +55,25 @@ function updateNavbar() {
     hideEls.forEach(id => {
         document.getElementById(id).style.display = user ? 'none' : 'inline-block';
     });
+
+    let logoutLink = document.getElementById('navLogout');
+    if (!logoutLink && user) {
+        const links = document.getElementById('navLinks');
+        logoutLink = document.createElement('a');
+        logoutLink.id = 'navLogout';
+        logoutLink.href = '#';
+        logoutLink.textContent = 'Logout';
+        logoutLink.onclick = () => logout();
+        links.appendChild(logoutLink);
+    }
+    if (logoutLink) logoutLink.style.display = user ? 'inline-block' : 'none';
+}
+
+async function logout() {
+    try { await API.post('/auth/logout'); } catch {}
+    API.setToken(null);
+    showToast('Logged out.');
+    router.navigate('/');
 }
 
 function toggleMobileMenu() {
@@ -434,9 +453,14 @@ const page = {
                         </div>
                         <div class="grid grid-2">
                             <div class="form-group">
+                                <label>Area</label>
+                                <input type="text" class="form-control" id="listingArea" placeholder="e.g. Sango">
+                            </div>
+                            <div class="form-group">
                                 <label>City</label>
                                 <input type="text" class="form-control" id="listingCity">
                             </div>
+                        </div>
                             <div class="form-group">
                                 <label>State</label>
                                 <input type="text" class="form-control" id="listingState">
@@ -446,6 +470,12 @@ const page = {
                             <label>Amenities (comma separated)</label>
                             <input type="text" class="form-control" id="listingAmenities" placeholder="e.g. wifi, water_supply, generator, furnished">
                         </div>
+                        <div class="form-group">
+                            <label>Photos (optional)</label>
+                            <input type="file" class="form-control" id="listingPhotos" name="photos[]" accept="image/*" multiple>
+                            <small style="color:var(--gray)">Max 8 photos. You can also add photos later.</small>
+                        </div>
+                        <div id="listingPhotoPreviews" style="display:flex;gap:8px;flex-wrap:wrap;margin-top:8px"></div>
                         <div id="listingError" class="alert alert-error" style="display:none"></div>
                         <button type="submit" class="btn btn-primary btn-block">Create Listing</button>
                     </form>
@@ -457,28 +487,41 @@ const page = {
             setLoading('createListingForm', true);
             document.getElementById('listingError').style.display = 'none';
             const amenities = document.getElementById('listingAmenities').value.split(',').map(s => s.trim()).filter(Boolean);
-            const data = {
-                title: document.getElementById('listingTitle').value,
-                description: document.getElementById('listingDescription').value,
-                price: parseFloat(document.getElementById('listingPrice').value),
-                pricePeriod: document.getElementById('listingPricePeriod').value,
-                roomType: document.getElementById('listingRoomType').value,
-                totalRoommatesNeeded: parseInt(document.getElementById('listingRoommatesNeeded').value),
-                address: {
-                    fullAddress: document.getElementById('listingAddress').value,
-                    city: document.getElementById('listingCity').value,
-                    state: document.getElementById('listingState').value,
-                },
-                amenities,
-            };
+            const fd = new FormData();
+            fd.append('title', document.getElementById('listingTitle').value);
+            fd.append('description', document.getElementById('listingDescription').value);
+            fd.append('price', document.getElementById('listingPrice').value);
+            fd.append('pricePeriod', document.getElementById('listingPricePeriod').value);
+            fd.append('roomType', document.getElementById('listingRoomType').value);
+            fd.append('totalRoommatesNeeded', document.getElementById('listingRoommatesNeeded').value);
+            fd.append('address[fullAddress]', document.getElementById('listingAddress').value);
+            fd.append('address[area]', document.getElementById('listingArea').value);
+            fd.append('address[city]', document.getElementById('listingCity').value);
+            fd.append('address[state]', document.getElementById('listingState').value);
+            amenities.forEach(a => fd.append('amenities[]', a));
+            const photoInput = document.getElementById('listingPhotos');
+            for (const file of photoInput.files) {
+                fd.append('photos[]', file);
+            }
             try {
-                const res = await API.post('/listings', data);
+                const res = await API.upload('POST', '/listings', fd);
                 showToast('Listing created!');
                 router.navigate('/my-listings');
             } catch (err) {
                 document.getElementById('listingError').textContent = err.message;
                 document.getElementById('listingError').style.display = 'block';
                 setLoading('createListingForm', false);
+            }
+        };
+        document.getElementById('listingPhotos').onchange = function() {
+            const container = document.getElementById('listingPhotoPreviews');
+            container.innerHTML = '';
+            for (const file of this.files) {
+                const img = document.createElement('img');
+                img.style.width = '80px'; img.style.height = '80px';
+                img.style.objectFit = 'cover'; img.style.borderRadius = '8px';
+                img.src = URL.createObjectURL(file);
+                container.appendChild(img);
             }
         };
     },
@@ -648,6 +691,7 @@ const page = {
                     </div>
                 </div>
                 <button class="btn btn-primary" onclick="updateProfile()">Update Profile</button>
+                <button class="btn btn-danger mt-2" onclick="logout()" style="width:100%">Logout</button>
             `;
 
             const ls = user.lifestyle || {};

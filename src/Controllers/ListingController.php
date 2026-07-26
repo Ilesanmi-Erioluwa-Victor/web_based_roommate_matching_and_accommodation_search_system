@@ -78,7 +78,25 @@ class ListingController
     public static function store(): void
     {
         $user = Auth::requireAuth();
-        $data = json_decode(file_get_contents('php://input'), true);
+
+        $contentType = $_SERVER['CONTENT_TYPE'] ?? $_SERVER['HTTP_CONTENT_TYPE'] ?? '';
+        $isMultipart = str_contains($contentType, 'multipart/form-data');
+
+        if ($isMultipart) {
+            $data = $_POST;
+            $data['address'] = [
+                'fullAddress' => $_POST['address']['fullAddress'] ?? '',
+                'city' => $_POST['address']['city'] ?? '',
+                'state' => $_POST['address']['state'] ?? '',
+            ];
+            if (!empty($_POST['amenities']) && is_array($_POST['amenities'])) {
+                $data['amenities'] = $_POST['amenities'];
+            }
+            $data['price'] = (float)($_POST['price'] ?? 0);
+            $data['totalRoommatesNeeded'] = (int)($_POST['totalRoommatesNeeded'] ?? 1);
+        } else {
+            $data = json_decode(file_get_contents('php://input'), true);
+        }
 
         if (empty($data['title']) || empty($data['price'])) {
             http_response_code(400);
@@ -108,6 +126,36 @@ class ListingController
                 'currentOccupants' => array_map(fn($id) => new \MongoDB\BSON\ObjectId($id), $data['currentOccupantIds'])
             ]);
         }
+
+        if ($isMultipart && !empty($_FILES['photos'])) {
+            $files = $_FILES['photos'];
+            $cloudinary = new CloudinaryService();
+            $id = (string)$listing['_id'];
+
+            if (is_array($files['name'])) {
+                $count = count($files['name']);
+                for ($i = 0; $i < $count && $i < 8; $i++) {
+                    if ($files['error'][$i] !== UPLOAD_ERR_OK) continue;
+                    $file = [
+                        'name' => $files['name'][$i],
+                        'tmp_name' => $files['tmp_name'][$i],
+                        'size' => $files['size'][$i],
+                        'error' => $files['error'][$i],
+                    ];
+                    $validation = $cloudinary->validateUploadedFile($file);
+                    if (!$validation['valid']) continue;
+                    try {
+                        $index = count(Listing::findById($id)['photos'] ?? []);
+                        $result = $cloudinary->uploadListingPhoto($file['tmp_name'], $id, $index);
+                        Listing::addPhoto($id, $result);
+                    } catch (\Exception $e) {
+                        continue;
+                    }
+                }
+            }
+        }
+
+        $listing = Listing::findById((string)$listing['_id']);
 
         AuditLog::log($user['_id'], 'listing.create.' . $listing['_id'], $_SERVER['REMOTE_ADDR'] ?? '', $_SERVER['HTTP_USER_AGENT'] ?? '');
         echo json_encode(['message' => 'Listing created.', 'listing' => $listing], JSON_UNESCAPED_UNICODE);

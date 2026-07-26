@@ -17,6 +17,7 @@ use RoomieMatch\Controllers\MessageController;
 use RoomieMatch\Controllers\ReviewController;
 use RoomieMatch\Controllers\ReportController;
 use RoomieMatch\Controllers\AdminController;
+use RoomieMatch\Controllers\SeedController;
 
 header('Content-Type: application/json; charset=utf-8');
 header('Access-Control-Allow-Origin: *');
@@ -255,6 +256,10 @@ try {
                 http_response_code(500);
                 echo json_encode(['error' => $e->getMessage()]);
             }
+            break;
+
+        case ($uri === '/api/seed' || $uri === '/api/seed/run') && ($method === 'GET' || $method === 'POST'):
+            SeedController::seed();
             break;
 
         case $uri === '/api/setup/create-admin' && $method === 'POST':
