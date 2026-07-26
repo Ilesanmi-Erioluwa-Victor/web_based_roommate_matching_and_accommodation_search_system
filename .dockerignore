@@ -1,0 +1,7 @@
+vendor/
+.env
+.git
+.gitignore
+*.md
+render.yaml
+roommate-matching-master-prompt.txt
