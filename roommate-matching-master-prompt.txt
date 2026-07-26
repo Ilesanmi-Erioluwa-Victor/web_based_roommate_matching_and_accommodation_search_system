@@ -1,0 +1,514 @@
+========================================================================
+DESIGN AND IMPLEMENTATION OF A WEB-BASED ROOMMATE MATCHING AND
+ACCOMMODATION SEARCH SYSTEM
+MASTER CODEX / OPENCODE IMPLEMENTATION PROMPT (MongoDB version)
+========================================================================
+
+NOTE ON STACK CHANGE
+----------------------
+The abstract specifies PHP + MySQL + HTML/CSS/JS on the Waterfall
+model. This prompt keeps PHP + HTML/CSS/JS + Waterfall but swaps
+MySQL for MongoDB, since the abstract's "measurable lifestyle
+compatibility" matching and location-based listing search are actually
+a better fit for MongoDB's flexible documents and native geospatial
+queries than a rigid relational schema. If your supervisor insists on
+literal MySQL, tell me and I'll convert the schema back — the feature
+list and logic below stay identical either way.
+
+HOW TO USE THIS FILE
+---------------------
+Paste the "MASTER PROMPT" section into Codex/OpenCode (or Claude Code)
+as your first instruction, then build in the phases listed under
+"BUILD ORDER" — one phase at a time, testing before moving on.
+
+========================================================================
+MASTER PROMPT (paste this in)
+========================================================================
+
+You are building "RoomieMatch" — a web-based roommate matching and
+accommodation search platform for a Nigerian polytechnic HND final
+year project. Follow this spec exactly. Build incrementally, one
+module at a time, confirming each works before moving to the next.
+
+PROJECT GOAL
+-------------
+A platform where a user can (a) list an accommodation/room they're
+offering, (b) search accommodation listings by location, price and
+amenities, and (c) get a ranked list of compatible prospective
+roommates computed from a weighted lifestyle-compatibility algorithm —
+covering both "I have a room, need a roommate" and "I need a room and
+a roommate" scenarios, including partial and group-based matching.
+
+TECH STACK (use exactly this)
+-------------------------------
+  - PHP 8.2 (procedural or lightweight MVC — no framework required
+    unless you prefer Slim/Laravel; keep it simple for a final year
+    project)
+  - MongoDB Atlas as the database (via the `mongodb/mongodb` Composer
+    library, NOT MySQL/PDO)
+  - HTML5, CSS3, Vanilla JavaScript (no Bootstrap, no frontend
+    framework — matches the abstract's stated stack)
+  - Cloudinary for listing photos and profile picture uploads/hosting
+    (image upload, storage, and on-the-fly thumbnail transformations)
+  - Brevo transactional HTTP API (axios/cURL POST) for email
+    verification, password reset, and match/message notifications —
+    NOT SMTP, since Render blocks SMTP ports
+  - Deployment: Render (backend + static assets), MongoDB Atlas
+    (database)
+  - Development methodology: Waterfall (Requirements -> Design ->
+    Implementation -> Testing -> Deployment -> Maintenance) — document
+    each phase distinctly in your Chapter 3/4 write-up
+
+FOLDER STRUCTURE
+------------------
+roomiematch/
+  public/
+    index.php
+    assets/ (css/, js/, images/)
+  src/
+    config/          (db.php — Mongo client bootstrap, env.php)
+    models/           (User.php, Listing.php, Match.php, Connection.php,
+                        Message.php, Review.php, Report.php)
+    controllers/
+    services/         (CompatibilityEngine.php, EmailService.php,
+                        CloudinaryService.php)
+    middleware/       (auth.php, rbac.php, rateLimit.php)
+    views/            (plain PHP templates or partials)
+  vendor/            (composer packages)
+  composer.json
+  .env.example
+  README.md
+
+DATABASE COLLECTIONS (MongoDB documents)
+-------------------------------------------
+users
+  _id, name, email (unique), passwordHash, phone, gender,
+  dateOfBirth, role: ["seeker","lister","both","admin"],
+  isVerified, isEmailVerified, isSuspended,
+  profilePhotoUrl,  // Cloudinary secure_url
+  profilePhotoPublicId,  // Cloudinary public_id, needed to delete/
+                          // replace the image later
+  lifestyle: {
+    budgetMin, budgetMax, currency: "NGN",
+    cleanliness: 1-5, sleepSchedule: "early_bird"|"night_owl"|"flexible",
+    smoker: bool, toleratesSmoking: bool,
+    hasPets: bool, toleratesPets: bool,
+    noiseLevel: 1-5, guestFrequency: "rarely"|"sometimes"|"often",
+    workSchedule: "9to5"|"night_shift"|"student"|"remote"|"mixed",
+    dietaryPreference: string, religionPreference: string|null,
+    genderPreference: "same"|"any",
+    preferredLocations: [string],   // e.g. towns/areas near campus
+    additionalNotes: string
+  },
+  dealBreakers: {
+    noSmokers: bool, noPets: bool, sameGenderOnly: bool,
+    maxBudgetStrict: bool
+  },
+  matchingStatus: "actively_looking"|"paused"|"found_roommate",
+  location: { type: "Point", coordinates: [lng, lat] }, // 2dsphere index
+  blockedUsers: [ObjectId],
+  savedListings: [ObjectId],
+  createdAt, updatedAt
+
+listings
+  _id, lister: ObjectId(users),
+  title, description,
+  address: { fullAddress, area, city, state },
+  location: { type: "Point", coordinates: [lng, lat] }, // 2dsphere
+  price: number, currency: "NGN", pricePeriod: "monthly"|"yearly",
+  amenities: [string] (e.g. "wifi","water_supply","generator","furnished",
+    "kitchen","parking","security","AC"),
+  roomType: "self_contain"|"shared_room"|"whole_apartment"|"studio",
+  totalRoommatesNeeded: number,
+  currentOccupants: [ObjectId(users)]   // existing roommates already
+                                          // living there, for group
+                                          // compatibility matching
+  photos: [{ url: string, publicId: string }],  // Cloudinary
+                                                   // secure_url + public_id
+                                                   // per photo (max ~8
+                                                   // photos per listing)
+  status: "active"|"filled"|"expired"|"removed_by_admin",
+  availableFrom: date,
+  viewsCount, favoritesCount,
+  createdAt, updatedAt, expiresAt
+
+connections   (roommate "interest" / handshake requests — prevents
+               spam messaging by requiring mutual opt-in before chat
+               unlocks)
+  _id, requester: ObjectId(users), recipient: ObjectId(users),
+  listing: ObjectId(listings)|null,
+  status: "pending"|"accepted"|"declined",
+  createdAt
+
+messages
+  _id, connection: ObjectId(connections),
+  sender: ObjectId(users), content, createdAt, readAt
+
+reviews
+  _id, reviewer: ObjectId(users), reviewee: ObjectId(users),
+  listing: ObjectId(listings)|null,
+  rating: 1-5, comment, createdAt
+  // lets past roommates rate each other after a stay — builds trust
+  // for future matches
+
+reports
+  _id, reporter: ObjectId(users), targetType: "user"|"listing",
+  targetId, reason, details, status: "pending"|"reviewed"|"dismissed",
+  createdAt
+
+auditLogs
+  _id, user: ObjectId(users), action, ipAddress, userAgent, timestamp
+
+CORE FEATURES — COVER EVERY SCENARIO BELOW
+----------------------------------------------
+
+1. AUTHENTICATION & PROFILE
+   - Register/login, bcrypt password hashing, email verification
+     (Brevo)
+   - A user can be a pure seeker, pure lister, or BOTH at once (e.g.
+     someone who already has a room and is looking to fill it AND is
+     also open to moving elsewhere) — role is not exclusive
+   - Full lifestyle-preference profile form (all fields in schema
+     above); flag and visually warn the user if their profile is
+     incomplete, since incomplete profiles reduce match accuracy
+   - "Matching status" toggle: actively_looking / paused /
+     found_roommate — paused/found_roommate users are excluded from
+     other users' match results (scenario: someone already matched
+     shouldn't keep appearing to others)
+
+2. ACCOMMODATION LISTING (for listers)
+   - Create/edit/remove listing with photos (Supabase Storage),
+     amenities checklist, price, room type, available-from date
+   - Mark listing status: active / filled / expired / removed
+   - Listings auto-expire after a configurable period (e.g. 60 days)
+     if not renewed — background/cron check, or checked lazily on
+     fetch (scenario: stale listings cluttering search results)
+   - A listing can already have existing occupants (currentOccupants)
+     — when a listing has occupants, roommate compatibility must be
+     computed against the AVERAGE/aggregate lifestyle profile of all
+     current occupants, not just the lister (scenario: joining a
+     3-person flat, not a 1-on-1 match)
+   - Lister can require listing verification (upload proof of
+     ownership/tenancy) — verified listings show a badge; unverified
+     ones are still visible but flagged (scenario: reduce scam risk
+     without blocking genuine new listers who lack documents yet)
+
+3. IMAGE UPLOAD (Cloudinary) — profile photos and listing photos
+   - Use the `cloudinary/cloudinary_php` SDK on the backend; uploads
+     are SIGNED (never expose the API secret to the browser) — the
+     frontend sends the file to your PHP endpoint, PHP uploads it to
+     Cloudinary server-side, then stores the returned secure_url +
+     public_id on the user/listing document
+   - Folder structure in Cloudinary: `roomiematch/profiles/{userId}`
+     and `roomiematch/listings/{listingId}`, so assets are easy to
+     find/audit and to bulk-delete if a user or listing is removed
+   - On upload, apply a Cloudinary transformation to auto-generate a
+     compressed, size-capped version (e.g. `w_1200,h_1200,c_limit,
+     q_auto,f_auto`) so users can't dump multi-MB originals that slow
+     down page loads
+   - Generate a separate thumbnail transformation URL on the fly for
+     grid/list views (e.g. `w_300,h_300,c_fill,q_auto,f_auto`) rather
+     than storing a second physical file — Cloudinary derives this
+     from the same public_id at request time
+   - Enforce on the backend (not just the frontend `accept` attribute):
+     file type whitelist (jpg, png, webp), max file size (e.g. 5MB),
+     and a max photo count per listing (e.g. 8) — reject anything
+     outside these limits with a clear error before calling Cloudinary
+   - When a user replaces their profile photo or a lister removes a
+     listing photo, delete the old asset from Cloudinary via its
+     public_id (use the Admin API `destroy` call) — don't just
+     overwrite the DB reference and leave orphaned images accumulating
+     in your Cloudinary account
+   - When a listing is deleted, delete all of its associated
+     Cloudinary assets in the same request/transaction, not as an
+     afterthought
+   - Handle upload failures (network error, Cloudinary quota/rate
+     limit, invalid file) gracefully — show the user a retry option
+     rather than silently failing or leaving a listing half-saved
+     with a missing photo
+
+4. ACCOMMODATION SEARCH (for seekers)
+   - Filter by: location (with radius search using MongoDB
+     $geoNear/2dsphere on both listing and user location — e.g. "show
+     listings within 5km of my saved location"), price range,
+     amenities (multi-select), room type, available-from date
+   - Full-text search on title/description (MongoDB text index)
+   - Sort by: price asc/desc, distance, newest, most compatible
+     (if the listing has occupants, sort by compatibility with them)
+   - Pagination (cursor or skip/limit) for large result sets
+   - Empty-state handling: if no listings match filters, suggest
+     relaxing the nearest filter (e.g. "no results within 5km — try
+     15km") rather than a blank page
+   - Save/favorite listings for later
+   - Report a listing (scam, misleading info, already taken)
+
+5. ROOMMATE COMPATIBILITY MATCHING ALGORITHM (the core feature)
+   Two-stage algorithm — HARD FILTER then WEIGHTED SCORE:
+
+   Stage 1 — Deal-breaker filtering (hard exclusions, not scored):
+     - If either user has dealBreakers.noSmokers = true and the other
+       user is a smoker -> excluded entirely
+     - If either has dealBreakers.noPets = true and the other hasPets
+       -> excluded
+     - If either has dealBreakers.sameGenderOnly = true and genders
+       differ -> excluded
+     - If dealBreakers.maxBudgetStrict = true and the other's budget
+       range doesn't overlap at all -> excluded
+     - Blocked users are always excluded both directions
+   This must run BEFORE scoring — never show a percentage match for
+   someone who fails a hard constraint.
+
+   Stage 2 — Weighted compatibility score (0-100) for users who pass
+   Stage 1:
+     Attribute            Weight   Similarity method
+     --------------------------------------------------------------
+     Budget overlap         20%    overlap ratio of [budgetMin,budgetMax]
+                                    ranges (0 if no overlap, 1 if
+                                    identical ranges)
+     Cleanliness             15%    1 - (|a-b| / 4)   (scale 1-5)
+     Sleep schedule          15%    1 if same, 0.5 if one is
+                                    "flexible", 0 if opposite
+     Smoking compatibility   10%    1 if both non-smokers or both
+                                    tolerate smoking, else scaled
+                                    (already hard-filtered if
+                                    dealbreaker set)
+     Pets compatibility      10%    similar logic to smoking
+     Noise tolerance         10%    1 - (|a-b| / 4)
+     Guest frequency         10%    1 if same, 0.5 if adjacent
+                                    category, 0 if opposite extremes
+     Work schedule overlap    5%    1 if same category, 0.5 if
+                                    compatible (e.g. remote+student),
+                                    0 if conflicting (e.g. night_shift
+                                    vs 9to5 in shared space)
+     Location proximity       5%    1 if within preferredLocations
+                                    overlap or within X km, scaled
+                                    down by distance otherwise
+
+     FinalScore = sum(weight_i * similarity_i) * 100
+     (weights sum to 100%; adjust proportionally if a field is
+     missing on either profile rather than assuming worst-case)
+
+   - If a listing has multiple currentOccupants, compute the score
+     against each occupant individually AND show an aggregate average,
+     since a seeker might match well with 2 of 3 occupants but poorly
+     with the third — show both, don't hide the disagreement
+   - Confidence indicator: if either profile is missing more than 30%
+     of lifestyle fields, show "Partial match — profile incomplete"
+     instead of a bare percentage, so users aren't misled by a score
+     computed on sparse data
+   - Recompute scores whenever a user updates their lifestyle profile
+     (don't cache stale scores indefinitely — recalculate on demand at
+     request time rather than storing precomputed scores, since the
+     user base is small enough for a final year project that live
+     computation is fine)
+
+6. CONNECTIONS & MESSAGING (spam-prevention flow)
+   - A seeker cannot directly DM anyone cold — they send a
+     "connection request" (optionally referencing a specific listing)
+   - Recipient accepts/declines; only on accept does a message thread
+     unlock (scenario: prevents the platform becoming a messaging
+     free-for-all / harassment vector)
+   - Either party can block the other at any time, which also
+     withdraws any pending/active connection
+
+7. TRUST & SAFETY
+   - Reviews: after a connection has existed for some minimum period,
+     either party can leave a rating/review of the other (past
+     roommate or lister) — builds a trust signal for future matches
+   - Reporting: report a user or listing (scam, harassment, fake
+     listing, already-taken-but-still-listed) -> goes to an admin
+     moderation queue
+   - Admin can suspend users, remove listings, and view audit logs
+   - Rate limiting on registration, login, and connection-request
+     endpoints to reduce spam/bot signups
+
+8. NOTIFICATIONS
+   - Email (Brevo) on: new connection request, connection accepted,
+     new message (digest, not per-message spam), listing about to
+     expire (renew reminder), account verification, password reset
+
+9. EDGE CASES TO EXPLICITLY HANDLE
+   - User deletes their account -> anonymize their reviews/messages
+     rather than breaking referential integrity (store as "Deleted
+     User" rather than cascading deletes that orphan other users' data)
+   - Listing's lister deletes their account -> listing auto-marked
+     "removed_by_admin" or "expired", not left dangling
+   - Two users somehow send each other connection requests
+     simultaneously -> auto-merge into a single accepted connection
+     rather than creating duplicates
+   - A user's matchingStatus is "found_roommate" but they still get
+     browsed via direct profile link -> show "no longer looking" state
+     instead of erroring
+   - Currency/localization: budgets stored and displayed in Naira
+     (NGN), but store as a plain number + currency field so it's not
+     hardcoded if reused elsewhere
+   - Distance search when a user hasn't set their location -> fall
+     back to preferredLocations text match instead of failing the
+     geo query
+   - Listing with zero currentOccupants -> match purely against the
+     lister's own profile (normal 1-on-1 case)
+
+API ROUTES (high level)
+--------------------------
+POST   /api/auth/register
+POST   /api/auth/verify-email
+POST   /api/auth/login
+POST   /api/auth/logout
+GET    /api/users/me
+PATCH  /api/users/me/profile
+PATCH  /api/users/me/lifestyle
+PATCH  /api/users/me/matching-status
+POST   /api/users/:id/block
+GET    /api/listings                (query: lat,lng,radius,price,
+                                       amenities,roomType,page)
+POST   /api/listings
+PATCH  /api/listings/:id
+DELETE /api/listings/:id
+POST   /api/listings/:id/photos       (upload to Cloudinary, signed)
+DELETE /api/listings/:id/photos/:publicId
+POST   /api/users/me/profile-photo    (upload to Cloudinary, signed)
+POST   /api/listings/:id/favorite
+GET    /api/listings/:id/compatibility   (returns per-occupant +
+                                            aggregate scores)
+GET    /api/matches/roommates            (ranked list of compatible
+                                            users, deal-breakers
+                                            pre-filtered)
+POST   /api/connections
+PATCH  /api/connections/:id/respond
+GET    /api/connections/:id/messages
+POST   /api/connections/:id/messages
+POST   /api/reviews
+POST   /api/reports
+GET    /api/admin/reports          (admin/moderator)
+PATCH  /api/admin/users/:id/suspend
+PATCH  /api/admin/listings/:id/remove
+GET    /api/admin/audit-logs
+
+ENVIRONMENT VARIABLES (.env.example)
+---------------------------------------
+MONGODB_URI=
+JWT_SECRET=
+BREVO_API_KEY=
+CLOUDINARY_CLOUD_NAME=
+CLOUDINARY_API_KEY=
+CLOUDINARY_API_SECRET=
+APP_URL=
+APP_ENV=
+
+BUILD ORDER (build in this exact order, one phase at a time)
+------------------------------------------------------------------
+Phase 1: PHP + MongoDB connection bootstrap, User model, register/
+         login/JWT auth (no lifestyle fields yet — bare account only)
+Phase 2: Email verification + password reset via Brevo
+Phase 3: Full lifestyle-profile form (backend + frontend), profile
+         completeness indicator
+Phase 4: Listing model + CRUD (create/edit/remove), Cloudinary photo
+         upload (signed uploads, transformations, delete-on-replace/
+         delete-on-listing-removal), profile photo upload
+Phase 5: Listing search with filters, geospatial radius search, text
+         search, pagination
+Phase 6: Compatibility engine (Stage 1 deal-breaker filter + Stage 2
+         weighted scoring), including group/aggregate matching for
+         listings with existing occupants
+Phase 7: Connections (request/accept/decline) + messaging
+Phase 8: Reviews + reporting + admin moderation dashboard
+Phase 9: Notifications (Brevo emails for each trigger event)
+Phase 10: Edge-case hardening (account deletion handling, simultaneous
+          requests, incomplete-profile confidence indicator, currency/
+          locale, rate limiting) + deployment to Render + Atlas
+
+Do not move to the next phase until the current one is fully working
+and testable end-to-end.
+
+========================================================================
+STEP-BY-STEP EXECUTION GUIDE (for you, the developer)
+========================================================================
+
+1. SET UP ACCOUNTS/SERVICES FIRST
+   - MongoDB Atlas cluster, create a 2dsphere index on
+     users.location and listings.location, and a text index on
+     listings.title/description
+   - Cloudinary account (free tier is enough) — grab your Cloud Name,
+     API Key, and API Secret from the dashboard
+   - Brevo account + API key
+   - Render account for hosting the PHP app (Docker or native PHP
+     buildpack, whichever Render supports for your PHP version)
+
+2. INITIALIZE THE PROJECT
+   - `composer require mongodb/mongodb`
+   - `composer require cloudinary/cloudinary_php`
+   - `composer require firebase/php-jwt` (JWT handling)
+   - `composer require vlucas/phpdotenv` (env vars)
+   - Set up the folder structure above
+
+3. FEED PHASE 1 OF THE MASTER PROMPT TO CODEX/OPENCODE
+   Test registration/login with a MongoDB Compass or Atlas UI check
+   before moving to Phase 2.
+
+4. WORK THROUGH PHASES 2–10 SEQUENTIALLY
+   Test each feature manually (Postman/browser) before telling the AI
+   to proceed to the next phase.
+
+5. WRITE YOUR FIVE CHAPTERS ALONGSIDE THE BUILD
+   - Chapter 1: Introduction — the informal/fragmented current process
+     (word-of-mouth, printed ads, generic social media posts) as the
+     problem statement, objectives, scope, significance
+   - Chapter 2: Literature Review — existing roommate-matching
+     platforms, compatibility-scoring approaches in related research,
+     geospatial search techniques, NoSQL vs relational modeling for
+     this domain (justify MongoDB's document model + geospatial
+     indexing as your rationale for departing from the original
+     MySQL suggestion)
+   - Chapter 3: Methodology & System Design — Waterfall SDLC phases
+     documented distinctly, use case diagram (seeker, lister, admin
+     actors), ER/document-relationship diagram from the schema above,
+     sequence diagram for the compatibility-matching flow, flowchart
+     of the weighted-scoring algorithm itself (this is your standout
+     diagram — show Stage 1 filter -> Stage 2 weighted sum visually)
+   - Chapter 4: Implementation & Testing — screenshots of each module,
+     a worked numeric example of the compatibility algorithm (pick two
+     sample profiles, show the actual weighted calculation step by
+     step), and testing scenarios: no-match empty state, deal-breaker
+     exclusion, group/aggregate matching against a 3-occupant listing,
+     geospatial radius search results
+   - Chapter 5: Summary, Conclusion, Recommendations
+
+6. TESTING CHECKLIST — RUN THESE SCENARIOS AND SCREENSHOT THE RESULTS
+   - Two users with a hard deal-breaker conflict never appear as a
+     match to each other, regardless of how similar other fields are
+   - A listing with 3 existing occupants shows per-occupant AND
+     aggregate compatibility for a new seeker
+   - A user with an incomplete profile (missing >30% of lifestyle
+     fields) shows "partial match" instead of a misleadingly precise
+     percentage
+   - Updating a lifestyle field changes the compatibility score on
+     next fetch, without needing a server restart or manual recompute
+   - Search with a radius filter that has zero results falls back
+     gracefully with a suggestion to widen the radius
+   - A connection request is required before messaging unlocks;
+     attempting to message without an accepted connection returns 403
+   - Blocking a user immediately removes them from search/match
+     results in both directions
+   - A user who sets matchingStatus to "found_roommate" no longer
+     appears in other users' ranked match lists
+
+========================================================================
+NOTES
+========================================================================
+- The compatibility algorithm (Stage 1 filter + Stage 2 weighted sum)
+  is your strongest, most examinable piece of logic — be ready to
+  hand-calculate one example live in your defense.
+- MongoDB's 2dsphere geospatial index and $geoNear are genuine
+  technical justification for choosing MongoDB over MySQL here — cite
+  this explicitly in Chapter 2/3 rather than just saying "MongoDB is
+  more flexible."
+- Keep the connection-before-messaging gate — examiners like seeing a
+  deliberate anti-abuse design decision, not just "users can DM
+  anyone."
+- Cloudinary handles image storage, compression, and thumbnail
+  generation outside your own server/database — worth a sentence in
+  Chapter 3 justifying why raw image bytes aren't stored in MongoDB
+  (keeps documents small and fast to query) and why signed
+  server-side uploads are used instead of exposing your API secret to
+  the browser.
+========================================================================

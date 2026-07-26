@@ -1,0 +1,43 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>RoomieMatch - Find Your Perfect Roommate</title>
+    <link rel="stylesheet" href="/assets/css/app.css">
+</head>
+<body>
+    <div id="app">
+        <nav id="navbar">
+            <div class="nav-inner">
+                <a href="#" class="logo" onclick="router.navigate('/')">RoomieMatch</a>
+                <div class="nav-links" id="navLinks">
+                    <a href="#" onclick="router.navigate('/listings')">Listings</a>
+                    <a href="#" id="navMatches" onclick="router.navigate('/matches')" style="display:none">Matches</a>
+                    <a href="#" id="navConnections" onclick="router.navigate('/connections')" style="display:none">Connections</a>
+                    <a href="#" id="navMyListings" onclick="router.navigate('/my-listings')" style="display:none">My Listings</a>
+                    <a href="#" id="navProfile" onclick="router.navigate('/profile')" style="display:none">Profile</a>
+                    <a href="#" id="navLogin" onclick="router.navigate('/login')">Login</a>
+                    <a href="#" id="navRegister" onclick="router.navigate('/register')">Register</a>
+                </div>
+                <button class="mobile-menu-btn" onclick="toggleMobileMenu()">☰</button>
+            </div>
+        </nav>
+
+        <main id="main-content">
+            <div class="loading-spinner" id="loadingSpinner">Loading...</div>
+            <div id="pageContent"></div>
+        </main>
+
+        <footer id="footer">
+            <p>&copy; 2026 RoomieMatch &mdash; HND Final Year Project</p>
+        </footer>
+
+        <div id="toastContainer" class="toast-container"></div>
+    </div>
+
+    <script src="/assets/js/api.js"></script>
+    <script src="/assets/js/router.js"></script>
+    <script src="/assets/js/app.js"></script>
+</body>
+</html>
