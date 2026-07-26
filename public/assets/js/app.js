@@ -50,22 +50,15 @@ function updateNavbar() {
     const hideEls = ['navLogin', 'navRegister'];
 
     showEls.forEach(id => {
-        document.getElementById(id).style.display = user ? 'inline-block' : 'none';
+        const el = document.getElementById(id);
+        if (el) el.style.display = user ? 'inline-block' : 'none';
     });
     hideEls.forEach(id => {
-        document.getElementById(id).style.display = user ? 'none' : 'inline-block';
+        const el = document.getElementById(id);
+        if (el) el.style.display = user ? 'none' : 'inline-block';
     });
 
-    let logoutLink = document.getElementById('navLogout');
-    if (!logoutLink && user) {
-        const links = document.getElementById('navLinks');
-        logoutLink = document.createElement('a');
-        logoutLink.id = 'navLogout';
-        logoutLink.href = '#';
-        logoutLink.textContent = 'Logout';
-        logoutLink.onclick = () => logout();
-        links.appendChild(logoutLink);
-    }
+    const logoutLink = document.getElementById('navLogout');
     if (logoutLink) logoutLink.style.display = user ? 'inline-block' : 'none';
 }
 
@@ -73,7 +66,7 @@ async function logout() {
     try { await API.post('/auth/logout'); } catch {}
     API.setToken(null);
     showToast('Logged out.');
-    router.navigate('/');
+    window.location.href = '/';
 }
 
 function toggleMobileMenu() {
@@ -87,10 +80,10 @@ document.addEventListener('click', (e) => {
 });
 
 const page = {
-    home() {
+    async home() {
         const user = getAuthUser();
         document.getElementById('pageContent').innerHTML = html`
-            <div class="text-center" style="padding:60px 0">
+            <div class="text-center" style="padding:60px 0 0">
                 <h1 style="font-size:2.5rem;color:var(--primary);margin-bottom:8px">RoomieMatch</h1>
                 <p style="font-size:1.2rem;color:var(--gray);margin-bottom:24px">
                     Find your perfect roommate and accommodation
@@ -117,7 +110,33 @@ const page = {
                     <p style="color:var(--gray);font-size:0.9rem">Our algorithm matches you with compatible roommates based on lifestyle preferences.</p></div>
                 </div>
             </div>
+            <h3 class="mt-6 mb-2 text-center" style="margin-top:48px">Recent Listings</h3>
+            <div id="homeListings" class="text-center" style="padding:20px;color:var(--gray)">Loading...</div>
         `;
+        try {
+            const res = await API.get('/listings?limit=6&sort=newest');
+            const container = document.getElementById('homeListings');
+            if (!res.listings || res.listings.length === 0) {
+                container.innerHTML = '<p>No listings yet. Be the first to <a href="#" onclick="router.navigate(\'/listings/create\')">create one</a>.</p>';
+                return;
+            }
+            container.innerHTML = html`
+                <div class="grid grid-3" style="margin-top:16px">
+                    ${res.listings.map(l => html`
+                        <div class="listing-card" style="cursor:pointer" onclick="router.navigate('/listings/${l._id}')">
+                            ${l.photos && l.photos[0] ? html`<img src="${l.photos[0].url}" alt="${esc(l.title)}" loading="lazy" style="height:160px">` : html`<div style="height:160px;background:var(--light-gray);display:flex;align-items:center;justify-content:center;color:var(--gray)">No photo</div>`}
+                            <div class="listing-card-body">
+                                <div class="listing-card-title">${esc(l.title)}</div>
+                                <div class="listing-card-price">₦${Number(l.price).toLocaleString()}</div>
+                            </div>
+                        </div>
+                    `).join('')}
+                </div>
+                <a href="#" class="btn btn-outline mt-4" onclick="router.navigate('/listings')">View All Listings</a>
+            `;
+        } catch (err) {
+            document.getElementById('homeListings').innerHTML = '<p>Could not load listings.</p>';
+        }
     },
 
     async login() {
