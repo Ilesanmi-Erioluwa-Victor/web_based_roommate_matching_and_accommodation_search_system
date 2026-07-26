@@ -5,7 +5,6 @@ namespace RoomieMatch\Controllers;
 use MongoDB\BSON\ObjectId;
 use MongoDB\BSON\UTCDateTime;
 use RoomieMatch\Config\Database;
-use RoomieMatch\Services\CloudinaryService;
 
 class SeedController
 {
@@ -39,7 +38,6 @@ class SeedController
 
         $userIds = [];
 
-        echo "Creating admin...\n";
         $adminUser = \RoomieMatch\Models\User::create([
             'name' => 'Admin',
             'email' => 'admin@example.com',
@@ -50,7 +48,6 @@ class SeedController
         ]);
         $userIds[] = $adminUser['_id'];
 
-        echo "Creating $count users...\n";
         for ($i = 0; $i < $count; $i++) {
             $name = $names[$i % count($names)];
             $gender = $genders[array_rand($genders)];
@@ -141,11 +138,9 @@ class SeedController
             'Executive living space with premium furnishings. Ideal for professionals seeking comfort and convenience.',
         ];
 
-        echo "Creating listings with images...\n";
         $listingIds = [];
         $listers = array_slice($userIds, 1);
         $totalListings = min(count($listingTitles), count($listers));
-        $cloudinary = new CloudinaryService();
 
         for ($i = 0; $i < $totalListings; $i++) {
             $listerId = $listers[$i % count($listers)];
@@ -195,20 +190,19 @@ class SeedController
             $id = (string)$listing['_id'];
             $listingIds[] = $id;
 
-            $photoCount = rand(1, 4);
+            $photoCount = rand(1, 3);
+            $photos = [];
             for ($p = 0; $p < $photoCount; $p++) {
                 $seed = "listing_{$id}_{$p}";
-                $url = "https://picsum.photos/seed/{$seed}/800/600";
-                try {
-                    $result = $cloudinary->uploadListingPhotoFromUrl($url, $id, $p);
-                    \RoomieMatch\Models\Listing::addPhoto($id, $result);
-                } catch (\Exception $e) {
-                    continue;
-                }
+                $photos[] = [
+                    'url' => "https://picsum.photos/seed/{$seed}/800/600",
+                    'publicId' => "seed_{$id}_{$p}",
+                ];
             }
+            \RoomieMatch\Models\Listing::update($id, ['photos' => $photos]);
         }
 
-        echo "Creating connections...\n";
+
         $connPairs = [];
         for ($i = 1; $i < min($count, 30); $i += 2) {
             if ($i + 1 < count($userIds)) {
@@ -254,7 +248,6 @@ class SeedController
             }
         }
 
-        echo "Creating reviews...\n";
         for ($i = 1; $i < min($count, 16); $i += 2) {
             if ($i + 1 < count($userIds)) {
                 \RoomieMatch\Models\Review::create([
