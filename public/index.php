@@ -24,14 +24,23 @@ if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
     exit;
 }
 
+$uri = parse_url($_SERVER['REQUEST_URI'], PHP_URL_PATH);
+
+if ($uri === '/api/health') {
+    if (file_exists(__DIR__ . '/../.env')) {
+        Env::load(__DIR__ . '/../.env');
+    }
+    try {
+        $db = Database::getConnection();
+        $db->command(['ping' => 1]);
+    } catch (\Exception $e) {}
+    echo json_encode(['status' => 'ok', 'timestamp' => time()]);
+    exit;
+}
+
 $envPath = __DIR__ . '/../.env';
 if (file_exists($envPath)) {
     Env::load($envPath);
-}
-
-if ($uri === '/api/health') {
-    echo json_encode(['status' => 'ok', 'timestamp' => time()]);
-    exit;
 }
 
 try {
@@ -46,8 +55,6 @@ try {
         exit;
     }
 }
-
-$uri = parse_url($_SERVER['REQUEST_URI'], PHP_URL_PATH);
 $method = $_SERVER['REQUEST_METHOD'];
 
 function matchRoute(string $uri, string $pattern): ?array {
