@@ -516,10 +516,9 @@ const page = {
                                 <input type="text" class="form-control" id="listingCity">
                             </div>
                         </div>
-                            <div class="form-group">
-                                <label>State</label>
-                                <input type="text" class="form-control" id="listingState">
-                            </div>
+                        <div class="form-group">
+                            <label>State</label>
+                            <input type="text" class="form-control" id="listingState">
                         </div>
                         <div class="form-group">
                             <label>Amenities (comma separated)</label>
