@@ -222,7 +222,7 @@ class Listing
     public static function formatDoc($doc): array
     {
         if ($doc === null) return [];
-        $arr = $doc instanceof \MongoDB\Model\BSONDocument ? json_decode(json_encode($doc), true) : (array)$doc;
+        $arr = \RoomieMatch\Config\BsonHelper::toArray($doc);
         if (isset($arr['_id'])) $arr['_id'] = (string)$arr['_id'];
         if (isset($arr['lister']) && $arr['lister'] instanceof ObjectId) $arr['lister'] = (string)$arr['lister'];
         if (isset($arr['currentOccupants']) && is_array($arr['currentOccupants'])) {

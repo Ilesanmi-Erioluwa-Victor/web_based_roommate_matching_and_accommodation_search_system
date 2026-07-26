@@ -89,7 +89,7 @@ class Connection
     public static function formatDoc($doc): array
     {
         if ($doc === null) return [];
-        $arr = $doc instanceof \MongoDB\Model\BSONDocument ? json_decode(json_encode($doc), true) : (array)$doc;
+        $arr = \RoomieMatch\Config\BsonHelper::toArray($doc);
         if (isset($arr['_id'])) $arr['_id'] = (string)$arr['_id'];
         if (isset($arr['requester']) && $arr['requester'] instanceof ObjectId) $arr['requester'] = (string)$arr['requester'];
         if (isset($arr['recipient']) && $arr['recipient'] instanceof ObjectId) $arr['recipient'] = (string)$arr['recipient'];
