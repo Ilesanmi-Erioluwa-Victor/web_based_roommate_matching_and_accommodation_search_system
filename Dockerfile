@@ -1,0 +1,23 @@
+FROM php:8.2-cli
+
+RUN apt-get update && apt-get install -y \
+    git unzip curl libcurl4-openssl-dev pkg-config libssl-dev \
+    autoconf automake libtool \
+    && pecl install mongodb \
+    && docker-php-ext-enable mongodb \
+    && rm -rf /var/lib/apt/lists/*
+
+COPY --from=composer:latest /usr/bin/composer /usr/bin/composer
+
+WORKDIR /app
+
+COPY composer.json ./
+RUN composer install --no-dev --optimize-autoloader --no-interaction 2>/dev/null || true
+
+COPY . .
+
+RUN composer dump-autoload --optimize 2>/dev/null || true
+
+EXPOSE 8000
+
+CMD ["sh", "-c", "php -S 0.0.0.0:${PORT:-8000} -t public"]

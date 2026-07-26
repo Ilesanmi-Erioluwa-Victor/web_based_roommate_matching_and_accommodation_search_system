@@ -1,9 +1,8 @@
 {
     "name": "roomiematch",
     "type": "web",
-    "env": "php",
-    "buildCommand": "composer install --no-dev --optimize-autoloader",
-    "startCommand": "php -S 0.0.0.0:\$PORT -t public",
+    "env": "docker",
+    "dockerfilePath": "./Dockerfile",
     "healthCheckPath": "/api/health",
     "envVars": [
         { "key": "APP_ENV", "value": "production" }
