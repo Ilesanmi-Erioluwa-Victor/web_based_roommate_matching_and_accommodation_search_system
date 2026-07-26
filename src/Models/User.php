@@ -200,7 +200,7 @@ class User
     public static function formatDoc($doc): array
     {
         if ($doc === null) return [];
-        $arr = $doc instanceof \MongoDB\Model\BSONDocument ? $doc->toArray() : (array)$doc;
+        $arr = $doc instanceof \MongoDB\Model\BSONDocument ? json_decode(json_encode($doc), true) : (array)$doc;
         if (isset($arr['_id'])) {
             $arr['_id'] = (string)$arr['_id'];
         }
