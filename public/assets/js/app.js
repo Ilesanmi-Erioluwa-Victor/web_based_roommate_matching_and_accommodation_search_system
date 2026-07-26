@@ -11,6 +11,20 @@ function showToast(msg, type = 'success') {
     setTimeout(() => toast.remove(), 3000);
 }
 
+function setLoading(formId, loading) {
+    const form = document.getElementById(formId);
+    if (!form) return;
+    const btn = form.querySelector('button[type="submit"]');
+    if (!btn) return;
+    if (loading) {
+        btn.disabled = true;
+        btn.classList.add('btn-loading');
+    } else {
+        btn.disabled = false;
+        btn.classList.remove('btn-loading');
+    }
+}
+
 function html(strings, ...vals) {
     return strings.reduce((acc, str, i) => acc + str + (vals[i] || ''), '');
 }
@@ -112,6 +126,8 @@ const page = {
         `;
         document.getElementById('loginForm').onsubmit = async (e) => {
             e.preventDefault();
+            setLoading('loginForm', true);
+            document.getElementById('loginError').style.display = 'none';
             const email = document.getElementById('loginEmail').value;
             const password = document.getElementById('loginPassword').value;
             try {
@@ -122,6 +138,7 @@ const page = {
             } catch (err) {
                 document.getElementById('loginError').textContent = err.message;
                 document.getElementById('loginError').style.display = 'block';
+                setLoading('loginForm', false);
             }
         };
     },
@@ -167,6 +184,8 @@ const page = {
         `;
         document.getElementById('registerForm').onsubmit = async (e) => {
             e.preventDefault();
+            setLoading('registerForm', true);
+            document.getElementById('regError').style.display = 'none';
             const data = {
                 name: document.getElementById('regName').value,
                 email: document.getElementById('regEmail').value,
@@ -182,6 +201,7 @@ const page = {
             } catch (err) {
                 document.getElementById('regError').textContent = err.message;
                 document.getElementById('regError').style.display = 'block';
+                setLoading('registerForm', false);
             }
         };
     },
@@ -434,6 +454,8 @@ const page = {
         `;
         document.getElementById('createListingForm').onsubmit = async (e) => {
             e.preventDefault();
+            setLoading('createListingForm', true);
+            document.getElementById('listingError').style.display = 'none';
             const amenities = document.getElementById('listingAmenities').value.split(',').map(s => s.trim()).filter(Boolean);
             const data = {
                 title: document.getElementById('listingTitle').value,
@@ -456,6 +478,7 @@ const page = {
             } catch (err) {
                 document.getElementById('listingError').textContent = err.message;
                 document.getElementById('listingError').style.display = 'block';
+                setLoading('createListingForm', false);
             }
         };
     },
@@ -808,6 +831,8 @@ async function uploadProfilePhoto(input) {
 }
 
 async function updateProfile() {
+    const btn = document.querySelector('button[onclick="updateProfile()"]');
+    if (btn) { btn.disabled = true; btn.classList.add('btn-loading'); }
     try {
         await API.patch('/users/me/profile', {
             phone: document.getElementById('profilePhone').value,
@@ -815,9 +840,12 @@ async function updateProfile() {
         });
         showToast('Profile updated!');
     } catch (err) { showToast(err.message, 'error'); }
+    if (btn) { btn.disabled = false; btn.classList.remove('btn-loading'); }
 }
 
 async function updateLifestyle() {
+    const btn = document.querySelector('button[onclick="updateLifestyle()"]');
+    if (btn) { btn.disabled = true; btn.classList.add('btn-loading'); }
     const getVal = (id) => document.getElementById(id)?.value;
     const getBool = (id) => document.getElementById(id)?.checked;
     try {
@@ -840,9 +868,12 @@ async function updateLifestyle() {
         showToast('Lifestyle profile saved!');
         router.navigate('/profile');
     } catch (err) { showToast(err.message, 'error'); }
+    if (btn) { btn.disabled = false; btn.classList.remove('btn-loading'); }
 }
 
 async function updateDealBreakers() {
+    const btn = document.querySelector('button[onclick="updateDealBreakers()"]');
+    if (btn) { btn.disabled = true; btn.classList.add('btn-loading'); }
     const getBool = (id) => document.getElementById(id)?.checked;
     try {
         await API.patch('/users/me/lifestyle', {
@@ -855,15 +886,19 @@ async function updateDealBreakers() {
         });
         showToast('Deal breakers saved!');
     } catch (err) { showToast(err.message, 'error'); }
+    if (btn) { btn.disabled = false; btn.classList.remove('btn-loading'); }
 }
 
 async function updateMatchingStatus() {
+    const btn = document.querySelector('button[onclick="updateMatchingStatus()"]');
+    if (btn) { btn.disabled = true; btn.classList.add('btn-loading'); }
     try {
         const status = document.getElementById('matchingStatus').value;
         await API.patch('/users/me/matching-status', { status });
         showToast('Status updated!');
         router.navigate('/profile');
     } catch (err) { showToast(err.message, 'error'); }
+    if (btn) { btn.disabled = false; btn.classList.remove('btn-loading'); }
 }
 
 async function sendConnection(userId, listingId) {
@@ -1053,10 +1088,12 @@ page.chat = async (connectionId) => {
         const content = input.value.trim();
         if (!content) return;
         input.value = '';
+        setLoading('messageForm', true);
         try {
             await API.post(`/connections/${connectionId}/messages`, { content });
+            setLoading('messageForm', false);
             await loadMessages();
-        } catch (err) { showToast(err.message, 'error'); }
+        } catch (err) { setLoading('messageForm', false); showToast(err.message, 'error'); }
     };
 };
 
@@ -1070,14 +1107,12 @@ router.register('/profile', () => page.profile());
 router.register('/connections', () => page.connections());
 router.register('/my-listings', () => page.myListings());
 
-router.register(/^\/listings\/([a-f0-9]+)$/, async () => {
-    const m = location.pathname.match(/\/listings\/([a-f0-9]+)/);
-    if (m) await page.listingDetail(m[1]);
+router.register(/^\/listings\/([a-f0-9]+)$/, async (id) => {
+    await page.listingDetail(id);
 });
 
-router.register(/^\/messages\/([a-f0-9]+)$/, async () => {
-    const m = location.pathname.match(/\/messages\/([a-f0-9]+)/);
-    if (m) await page.chat(m[1]);
+router.register(/^\/messages\/([a-f0-9]+)$/, async (id) => {
+    await page.chat(id);
 });
 
 router.register('*', () => router.navigate('/'));

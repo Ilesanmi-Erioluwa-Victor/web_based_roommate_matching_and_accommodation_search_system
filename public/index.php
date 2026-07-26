@@ -297,6 +297,11 @@ try {
                 readfile($filePath);
                 break;
             }
+            if (!str_starts_with($uri, '/api/')) {
+                header('Content-Type: text/html; charset=utf-8');
+                readfile(__DIR__ . '/../src/views/index.html');
+                break;
+            }
             http_response_code(404);
             echo json_encode(['error' => 'Not found.']);
             break;
