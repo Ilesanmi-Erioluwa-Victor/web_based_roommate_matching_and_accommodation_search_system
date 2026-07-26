@@ -63,6 +63,27 @@ class Message
         ]);
     }
 
+    public static function getUnreadCountForConnection(string|ObjectId $connectionId, string|ObjectId $userId): int
+    {
+        if (is_string($connectionId)) $connectionId = new ObjectId($connectionId);
+        if (is_string($userId)) $userId = new ObjectId($userId);
+        return self::getCollection()->countDocuments([
+            'connection' => $connectionId,
+            'sender' => ['$ne' => $userId],
+            'readAt' => null,
+        ]);
+    }
+
+    public static function getLastMessage(string|ObjectId $connectionId): ?array
+    {
+        if (is_string($connectionId)) $connectionId = new ObjectId($connectionId);
+        $doc = self::getCollection()->findOne(
+            ['connection' => $connectionId],
+            ['sort' => ['createdAt' => -1]]
+        );
+        return $doc ? self::formatDoc($doc) : null;
+    }
+
     public static function anonymizeUserMessages(string|ObjectId $userId): int
     {
         if (is_string($userId)) $userId = new ObjectId($userId);

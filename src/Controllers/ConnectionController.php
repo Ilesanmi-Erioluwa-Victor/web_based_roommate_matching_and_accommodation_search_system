@@ -181,8 +181,15 @@ class ConnectionController
                 'profilePhotoUrl' => $otherUser['profilePhotoUrl'],
             ] : null;
 
-            $unreadCount = Message::getUnreadCount($user['_id']);
-            $conn['unreadCount'] = $unreadCount;
+            $conn['unreadCount'] = Message::getUnreadCountForConnection($conn['_id'], $user['_id']);
+
+            $lastMsg = Message::getLastMessage($conn['_id']);
+            $conn['lastMessage'] = $lastMsg ? [
+                'content' => mb_substr($lastMsg['content'], 0, 60),
+                'sender' => $lastMsg['sender'],
+                'createdAt' => $lastMsg['createdAt'],
+            ] : null;
+
             $result[] = $conn;
         }
 

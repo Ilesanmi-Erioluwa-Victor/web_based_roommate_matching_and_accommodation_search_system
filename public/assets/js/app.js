@@ -1206,14 +1206,23 @@ async function showAcceptedConnections() {
             container.innerHTML = html`<div class="empty-state"><h3>No Active Connections</h3></div>`;
             return;
         }
+        const userId = getAuthUser().sub;
         container.innerHTML = res.connections.map(c => html`
-            <div class="connection-item">
-                <img src="${c.otherUser?.profilePhotoUrl || '/assets/images/default-avatar.png'}" class="avatar avatar-sm">
-                <div style="flex:1">
-                    <div style="font-weight:600">${esc(c.otherUser?.name || 'Unknown')}</div>
-                    <div style="font-size:0.85rem;color:var(--gray)">Connected</div>
+            <div class="connection-item" style="cursor:pointer" onclick="openChat('${c._id}')">
+                <div style="position:relative">
+                    <img src="${c.otherUser?.profilePhotoUrl || '/assets/images/default-avatar.png'}" class="avatar avatar-sm">
+                    ${c.unreadCount > 0 ? html`<span style="position:absolute;top:-4px;right:-4px;background:var(--danger);color:var(--white);font-size:0.7rem;font-weight:700;min-width:18px;height:18px;border-radius:9px;display:flex;align-items:center;justify-content:center;padding:0 4px">${c.unreadCount}</span>` : ''}
                 </div>
-                <button class="btn btn-primary btn-sm" onclick="openChat('${c._id}')">Message</button>
+                <div style="flex:1;min-width:0">
+                    <div style="font-weight:600;display:flex;justify-content:space-between">
+                        <span>${esc(c.otherUser?.name || 'Unknown')}</span>
+                        ${c.lastMessage ? html`<span style="font-size:0.75rem;color:var(--gray)">${new Date(c.lastMessage.createdAt?.$date || c.lastMessage.createdAt).toLocaleDateString()}</span>` : ''}
+                    </div>
+                    <div style="font-size:0.85rem;color:var(--gray);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">
+                        ${c.lastMessage ? html`${c.lastMessage.sender === userId ? 'You: ' : ''}${esc(c.lastMessage.content)}` : html`<span style="font-style:italic">No messages yet</span>`}
+                    </div>
+                </div>
+                <button class="btn btn-primary btn-sm" onclick="event.stopPropagation();openChat('${c._id}')">Message</button>
             </div>
         `).join('');
     } catch (err) { container.innerHTML = html`<div class="alert alert-error">${esc(err.message)}</div>`; }
