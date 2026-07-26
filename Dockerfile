@@ -12,7 +12,7 @@ COPY --from=composer:latest /usr/bin/composer /usr/bin/composer
 WORKDIR /app
 
 COPY composer.json ./
-RUN composer install --no-dev --optimize-autoloader --no-interaction --no-audit --ignore-platform-req=ext-mongodb
+RUN composer install --no-dev --optimize-autoloader --no-interaction --no-blocking --ignore-platform-req=ext-mongodb
 
 COPY . .
 
