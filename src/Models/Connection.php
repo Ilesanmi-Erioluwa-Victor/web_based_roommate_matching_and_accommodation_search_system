@@ -57,12 +57,15 @@ class Connection
     public static function findPendingForUser(string|ObjectId $userId): array
     {
         if (is_string($userId)) $userId = new ObjectId($userId);
-        $docs = self::getCollection()->find([
-            '$or' => [
-                ['recipient' => $userId, 'status' => 'pending'],
-                ['requester' => $userId, 'status' => 'pending'],
-            ]
-        ])->sort(['createdAt' => -1])->toArray();
+        $docs = self::getCollection()->find(
+            [
+                '$or' => [
+                    ['recipient' => $userId, 'status' => 'pending'],
+                    ['requester' => $userId, 'status' => 'pending'],
+                ]
+            ],
+            ['sort' => ['createdAt' => -1]]
+        )->toArray();
         return array_map([self::class, 'formatDoc'], $docs);
     }
 
