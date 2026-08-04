@@ -97,8 +97,6 @@ class User
     {
         $pipeline = [];
 
-        $pipeline[] = ['$match' => ['matchingStatus' => 'actively_looking']];
-
         if (!empty($criteria['excludeIds'])) {
             $pipeline[] = ['$match' => ['_id' => ['$nin' => array_map(fn($id) => new ObjectId($id), $criteria['excludeIds'])]]];
         }

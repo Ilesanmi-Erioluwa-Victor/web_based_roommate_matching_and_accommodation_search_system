@@ -670,7 +670,7 @@ const page = {
         const container = document.getElementById('matchesContainer');
         const pagination = document.getElementById('matchesPagination');
         try {
-            const res = await API.get(`/matches/roommates?page=${page}&limit=10`);
+            const res = await API.get(`/matches/roommates?page=${page}&limit=20`);
             if (!res.matches || res.matches.length === 0) {
                 container.innerHTML = html`
                     <div class="empty-state">
@@ -775,7 +775,8 @@ const page = {
                     <div style="flex:1">
                         <h3>${esc(user.name)}</h3>
                         <p style="color:var(--gray);font-size:0.9rem">${esc(user.email)}</p>
-                        <span class="badge badge-${user.isEmailVerified ? 'success' : 'warning'}">${user.isEmailVerified ? 'Verified' : 'Unverified'}</span>
+                        ${user.isVerified ? html`<span class="badge badge-success">✓ Account Verified</span>` : html`<span class="badge badge-warning">Account Unverified</span>`}
+                        ${user.isEmailVerified ? '' : html`<span class="badge badge-warning">Email Unverified</span>`}
                         <span class="badge badge-${user.matchingStatus === 'actively_looking' ? 'success' : 'warning'}">${esc(user.matchingStatus.replace('_',' '))}</span>
                     </div>
                     <div>
