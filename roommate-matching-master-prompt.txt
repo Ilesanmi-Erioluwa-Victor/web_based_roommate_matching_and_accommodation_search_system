@@ -26,7 +26,7 @@ MASTER PROMPT (paste this in)
 ========================================================================
 
 You are building "RoomieMatch" — a web-based roommate matching and
-accommodation search platform for a Nigerian polytechnic HND final
+accommodation search platform for a Nigerian polytechnic ND final
 year project. Follow this spec exactly. Build incrementally, one
 module at a time, confirming each works before moving to the next.
 
